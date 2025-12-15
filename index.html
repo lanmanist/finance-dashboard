@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Flow Dashboard | Live from Google Sheets</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-sankey/0.12.3/d3-sankey.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0f1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2234;
+            --border: #2a3548;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-green: #22c55e;
+            --accent-blue: #3b82f6;
+            --accent-purple: #a855f7;
+            --accent-orange: #f97316;
+            --accent-red: #ef4444;
+            --accent-teal: #14b8a6;
+            --accent-pink: #ec4899;
+            --accent-yellow: #eab308;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        .container { max-width: 1600px; margin: 0 auto; padding: 24px; }
+        
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        h1 { font-size: 24px; font-weight: 600; }
+        h1 span { color: var(--accent-blue); }
+        
+        /* Status bar */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            flex-wrap: wrap;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-yellow);
+            animation: pulse 2s infinite;
+        }
+        .status-dot.connected { background: var(--accent-green); animation: none; }
+        .status-dot.error { background: var(--accent-red); animation: none; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        /* Setup banner */
+        .setup-banner {
+            background: linear-gradient(135deg, #1e3a5f 0%, #1a2234 100%);
+            border: 1px solid var(--accent-blue);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .setup-banner h3 { color: var(--accent-blue); margin-bottom: 12px; }
+        .setup-banner code {
+            background: var(--bg-primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .setup-banner ol { margin-left: 20px; line-height: 1.8; }
+        .setup-banner .api-input {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .setup-banner input {
+            flex: 1;
+            padding: 10px 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+        .setup-banner input:focus { outline: none; border-color: var(--accent-blue); }
+        
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        label { font-size: 13px; color: var(--text-secondary); }
+        select, button {
+            padding: 8px 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+        }
+        select:hover, button:hover { border-color: var(--accent-blue); }
+        button.primary { background: var(--accent-blue); border-color: var(--accent-blue); }
+        button.primary:hover { background: #2563eb; }
+        
+        /* Month type badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge.bonus { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+        .badge.rsu { background: rgba(168, 85, 247, 0.2); color: var(--accent-purple); }
+        .badge.sondertilgung { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .badge.post-mortgage { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .badge.debt-attack { background: rgba(249, 115, 22, 0.2); color: var(--accent-orange); }
+        .badge.lean { background: rgba(100, 116, 139, 0.2); color: var(--text-muted); }
+        
+        /* Stats row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+        .stat-value { font-size: 20px; font-weight: 600; }
+        .stat-value.positive { color: var(--accent-green); }
+        .stat-value.negative { color: var(--accent-red); }
+        
+        /* Sankey container */
+        .sankey-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            min-height: 500px;
+        }
+        .sankey-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        /* Sankey styles */
+        .node rect { cursor: pointer; }
+        .node text { font-size: 12px; fill: var(--text-primary); }
+        .link { fill: none; stroke-opacity: 0.4; }
+        .link:hover { stroke-opacity: 0.7; }
+        
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1000;
+            max-width: 300px;
+        }
+        .tooltip.visible { opacity: 1; }
+        .tooltip-title { font-weight: 600; margin-bottom: 4px; }
+        .tooltip-value { color: var(--accent-green); }
+        
+        /* Legend */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+        
+        /* Loading */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 400px;
+            color: var(--text-muted);
+            gap: 16px;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Error */
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--accent-red);
+            border-radius: 8px;
+            padding: 16px;
+            color: var(--accent-red);
+        }
+        
+        /* Hidden */
+        .hidden { display: none !important; }
+        
+        /* Link to sheet */
+        .sheet-link {
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-size: 12px;
+        }
+        .sheet-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💰 Financial Flow <span>Dashboard</span></h1>
+            <div class="control-group">
+                <a href="https://docs.google.com/spreadsheets/d/1rTVkCLy0yqq1sByvBuM-ENWM_3ctK0V1/edit" 
+                   target="_blank" class="sheet-link">📊 Open Google Sheet</a>
+                <button onclick="refreshData()" class="primary">⟳ Refresh</button>
+            </div>
+        </header>
+        
+        <!-- Setup Banner (shown until API URL is set) -->
+        <div class="setup-banner" id="setupBanner">
+            <h3>⚙️ One-Time Setup Required</h3>
+            <ol>
+                <li>Open your <a href="https://docs.google.com/spreadsheets/d/1rTVkCLy0yqq1sByvBuM-ENWM_3ctK0V1/edit" target="_blank" style="color: var(--accent-blue)">Google Sheet</a></li>
+                <li>Go to <strong>Extensions → Apps Script</strong></li>
+                <li>Paste the <code>Code.gs</code> content and save</li>
+                <li>Click <strong>Deploy → New deployment → Web app</strong></li>
+                <li>Set "Who has access" to <strong>Anyone</strong>, deploy, and copy the URL</li>
+                <li>Paste the URL below:</li>
+            </ol>
+            <div class="api-input">
+                <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+                <button onclick="saveApiUrl()" class="primary">Save & Connect</button>
+            </div>
+        </div>
+        
+        <div class="status-bar">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Not connected</span>
+            <span style="margin-left: auto; color: var(--text-muted);" id="lastUpdate"></span>
+        </div>
+        
+        <div class="controls" id="controls">
+            <div class="control-group">
+                <label>View:</label>
+                <select id="viewMode" onchange="render()">
+                    <option value="month">Single Month</option>
+                    <option value="year">Full Year</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Year:</label>
+                <select id="yearSelect" onchange="updateMonthOptions(); render()"></select>
+            </div>
+            <div class="control-group" id="monthGroup">
+                <label>Month:</label>
+                <select id="monthSelect" onchange="render()"></select>
+            </div>
+            <div id="monthBadges" style="display: flex; gap: 8px; align-items: center;"></div>
+        </div>
+        
+        <div class="stats-row" id="statsRow"></div>
+        
+        <div class="sankey-container">
+            <div class="sankey-title">
+                <span>💸 Money Flow</span>
+                <span id="flowTitle" style="font-weight: normal; color: var(--text-secondary);"></span>
+            </div>
+            <div id="sankey">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>Connect to Google Sheets to see your data</span>
+                </div>
+            </div>
+            <div class="legend" id="legend"></div>
+        </div>
+    </div>
+    
+    <div class="tooltip" id="tooltip"></div>
+
+<script>
+// ============ CONFIGURATION ============
+// This will be set by the user or stored in localStorage
+let API_URL = localStorage.getItem('sankey_api_url') || '';
+
+// Color palette
+const colors = {
+    h_salary: '#22c55e',
+    w_salary: '#10b981',
+    h_rsu: '#a855f7',
+    w_rsu: '#c084fc',
+    youtube: '#ef4444',
+    ownsap_sell: '#f97316',
+    cmp: '#3b82f6',
+    mortgage: '#64748b',
+    sondertilgung: '#dc2626',
+    high_apr: '#f43f5e',
+    fixed_debt: '#fb923c',
+    sap_loan: '#94a3b8',
+    expenses: '#8b5cf6',
+    investment: '#06b6d4',
+    ownsap_inv: '#0ea5e9',
+    cashpile: '#14b8a6',
+};
+
+// State
+let allData = [];
+let currentYear = 2026;
+let currentMonth = 1;
+
+// ============ INITIALIZATION ============
+
+function init() {
+    // Check if API URL is already saved
+    if (API_URL) {
+        document.getElementById('setupBanner').classList.add('hidden');
+        document.getElementById('apiUrlInput').value = API_URL;
+        refreshData();
+    } else {
+        document.getElementById('controls').classList.add('hidden');
+    }
+}
+
+function saveApiUrl() {
+    const input = document.getElementById('apiUrlInput');
+    const url = input.value.trim();
+    
+    if (!url.startsWith('https://script.google.com/')) {
+        alert('Please enter a valid Google Apps Script URL');
+        return;
+    }
+    
+    API_URL = url;
+    localStorage.setItem('sankey_api_url', url);
+    document.getElementById('setupBanner').classList.add('hidden');
+    document.getElementById('controls').classList.remove('hidden');
+    refreshData();
+}
+
+// ============ DATA FETCHING ============
+
+async function refreshData() {
+    if (!API_URL) {
+        document.getElementById('setupBanner').classList.remove('hidden');
+        return;
+    }
+    
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    
+    statusDot.className = 'status-dot';
+    statusText.textContent = 'Connecting to Google Sheets...';
+    document.getElementById('sankey').innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading live data...</span></div>';
+    
+    try {
+        const res = await fetch(API_URL);
+        const json = await res.json();
+        
+        if (json.success) {
+            allData = json.data;
+            statusDot.className = 'status-dot connected';
+            statusText.textContent = `Live • ${json.count} months from Google Sheets`;
+            document.getElementById('lastUpdate').textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+            
+            populateSelects();
+            render();
+        } else {
+            throw new Error(json.error || 'Failed to load data');
+        }
+    } catch (err) {
+        statusDot.className = 'status-dot error';
+        statusText.textContent = `Error: ${err.message}`;
+        document.getElementById('sankey').innerHTML = `
+            <div class="error">
+                <strong>Connection failed:</strong> ${err.message}<br><br>
+                Check that your Apps Script is deployed correctly and the URL is correct.
+            </div>
+        `;
+    }
+}
+
+// ============ UI HELPERS ============
+
+function fmt(val) {
+    return new Intl.NumberFormat('de-DE', { 
+        style: 'currency', 
+        currency: 'EUR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(val);
+}
+
+function populateSelects() {
+    const years = [...new Set(allData.map(d => d.year))].sort();
+    const yearSelect = document.getElementById('yearSelect');
+    yearSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+    yearSelect.value = currentYear;
+    updateMonthOptions();
+}
+
+function updateMonthOptions() {
+    currentYear = parseInt(document.getElementById('yearSelect').value);
+    const months = allData.filter(d => d.year === currentYear).map(d => d.month);
+    const monthSelect = document.getElementById('monthSelect');
+    const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    monthSelect.innerHTML = months.map(m => `<option value="${m}">${monthNames[m]} ${currentYear}</option>`).join('');
+    if (months.includes(currentMonth)) {
+        monthSelect.value = currentMonth;
+    } else {
+        currentMonth = months[0];
+        monthSelect.value = currentMonth;
+    }
+}
+
+function getMonthData() {
+    currentMonth = parseInt(document.getElementById('monthSelect').value);
+    return allData.find(d => d.year === currentYear && d.month === currentMonth);
+}
+
+function getYearData() {
+    return allData.filter(d => d.year === currentYear);
+}
+
+// ============ RENDERING ============
+
+function render() {
+    const viewMode = document.getElementById('viewMode').value;
+    document.getElementById('monthGroup').style.display = viewMode === 'month' ? 'flex' : 'none';
+    
+    if (viewMode === 'month') {
+        renderMonth();
+    } else {
+        renderYear();
+    }
+}
+
+function renderMonth() {
+    const data = getMonthData();
+    if (!data) return;
+    
+    const inf = data.inflows;
+    const out = data.outflows;
+    const bal = data.balances;
+    
+    const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+    document.getElementById('flowTitle').textContent = `${monthNames[data.month]} ${data.year}`;
+    
+    // Badges
+    let badges = [];
+    if (data.is_debt_attack_phase) badges.push('<span class="badge debt-attack">Debt Attack</span>');
+    if (data.is_bonus_month) badges.push('<span class="badge bonus">Bonus Month</span>');
+    if (data.is_rsu_month) badges.push('<span class="badge rsu">RSU Month</span>');
+    if (data.is_sondertilgung_month) badges.push('<span class="badge sondertilgung">Sondertilgung</span>');
+    if (data.is_post_mortgage) badges.push('<span class="badge post-mortgage">Post-Mortgage</span>');
+    if (badges.length === 0) badges.push('<span class="badge lean">Standard</span>');
+    document.getElementById('monthBadges').innerHTML = badges.join('');
+    
+    // Stats
+    const totalIn = Object.values(inf).reduce((a, b) => a + b, 0);
+    const totalOut = Object.values(out).reduce((a, b) => a + b, 0);
+    
+    document.getElementById('statsRow').innerHTML = `
+        <div class="stat-card">
+            <div class="stat-label">Total Inflow</div>
+            <div class="stat-value positive">${fmt(totalIn)}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Outflow</div>
+            <div class="stat-value">${fmt(totalOut)}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">CMP Balance</div>
+            <div class="stat-value">${fmt(bal.cmp)}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Investment</div>
+            <div class="stat-value positive">${fmt(bal.investment)}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Mortgage</div>
+            <div class="stat-value ${bal.mortgage > 0 ? 'negative' : 'positive'}">${fmt(bal.mortgage)}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Net Worth</div>
+            <div class="stat-value positive">${fmt(bal.net_worth)}</div>
+        </div>
+    `;
+    
+    // Build Sankey
+    const nodes = [];
+    const links = [];
+    const nodeMap = {};
+    
+    function addNode(name, color) {
+        if (!nodeMap[name]) {
+            nodeMap[name] = nodes.length;
+            nodes.push({ name, color });
+        }
+        return nodeMap[name];
+    }
+    
+    const cmpIdx = addNode('CMP', colors.cmp);
+    
+    // Inflows → CMP
+    if (inf.h_salary_net > 0) {
+        const idx = addNode('H Salary', colors.h_salary);
+        links.push({ source: idx, target: cmpIdx, value: inf.h_salary_net, color: colors.h_salary });
+    }
+    if (inf.w_salary_net > 0) {
+        const idx = addNode('W Salary', colors.w_salary);
+        links.push({ source: idx, target: cmpIdx, value: inf.w_salary_net, color: colors.w_salary });
+    }
+    if (inf.h_rsu_net > 0) {
+        const idx = addNode('H RSU', colors.h_rsu);
+        links.push({ source: idx, target: cmpIdx, value: inf.h_rsu_net, color: colors.h_rsu });
+    }
+    if (inf.w_rsu_net > 0) {
+        const idx = addNode('W RSU', colors.w_rsu);
+        links.push({ source: idx, target: cmpIdx, value: inf.w_rsu_net, color: colors.w_rsu });
+    }
+    if (inf.yt_net > 0) {
+        const idx = addNode('YouTube', colors.youtube);
+        links.push({ source: idx, target: cmpIdx, value: inf.yt_net, color: colors.youtube });
+    }
+    if (inf.ownsap_to_cmp > 0) {
+        const idx = addNode('OWNSAP (Sold)', colors.ownsap_sell);
+        links.push({ source: idx, target: cmpIdx, value: inf.ownsap_to_cmp, color: colors.ownsap_sell });
+    }
+    
+    // CMP → Outflows
+    if (out.mortgage_payment > 0) {
+        const idx = addNode('Mortgage', colors.mortgage);
+        links.push({ source: cmpIdx, target: idx, value: out.mortgage_payment, color: colors.mortgage });
+    }
+    if (out.sondertilgung > 0) {
+        const idx = addNode('Sondertilgung', colors.sondertilgung);
+        links.push({ source: cmpIdx, target: idx, value: out.sondertilgung, color: colors.sondertilgung });
+    }
+    if (out.high_apr_payment > 0) {
+        const idx = addNode('High-APR Debt', colors.high_apr);
+        links.push({ source: cmpIdx, target: idx, value: out.high_apr_payment, color: colors.high_apr });
+    }
+    if (out.fixed_debt_payment > 0) {
+        const idx = addNode('Fixed Loans', colors.fixed_debt);
+        links.push({ source: cmpIdx, target: idx, value: out.fixed_debt_payment, color: colors.fixed_debt });
+    }
+    if (out.sap_loan_payment > 0) {
+        const idx = addNode('SAP Loan', colors.sap_loan);
+        links.push({ source: cmpIdx, target: idx, value: out.sap_loan_payment, color: colors.sap_loan });
+    }
+    if (out.expenses > 0) {
+        const idx = addNode('Expenses', colors.expenses);
+        links.push({ source: cmpIdx, target: idx, value: out.expenses, color: colors.expenses });
+    }
+    
+    // OWNSAP → Investment (after debt cleared)
+    if (out.inv_ownsap > 0) {
+        const invIdx = addNode('Investment', colors.investment);
+        const ownsapIdx = addNode('OWNSAP', colors.ownsap_inv);
+        links.push({ source: ownsapIdx, target: invIdx, value: out.inv_ownsap, color: colors.ownsap_inv });
+    }
+    
+    // CMP overflow → Investment
+    if (out.inv_excess > 0) {
+        let invIdx = nodeMap['Investment'];
+        if (invIdx === undefined) invIdx = addNode('Investment', colors.investment);
+        links.push({ source: cmpIdx, target: invIdx, value: out.inv_excess, color: colors.investment });
+    }
+    
+    // Cashpile
+    if (out.cash_add > 0) {
+        const idx = addNode('Cashpile', colors.cashpile);
+        links.push({ source: cmpIdx, target: idx, value: out.cash_add, color: colors.cashpile });
+    }
+    
+    drawSankey(nodes, links);
+    updateLegend(nodes);
+}
+
+function renderYear() {
+    const yearData = getYearData();
+    if (!yearData.length) return;
+    
+    document.getElementById('flowTitle').textContent = `Full Year ${currentYear}`;
+    document.getElementById('monthBadges').innerHTML = '';
+    
+    // Aggregate
+    const totals = { inflows: {}, outflows: {} };
+    yearData.forEach(d => {
+        Object.entries(d.inflows).forEach(([k, v]) => {
+            totals.inflows[k] = (totals.inflows[k] || 0) + v;
+        });
+        Object.entries(d.outflows).forEach(([k, v]) => {
+            totals.outflows[k] = (totals.outflows[k] || 0) + v;
+        });
+    });
+    
+    const lastMonth = yearData[yearData.length - 1];
+    const inf = totals.inflows;
+    const out = totals.outflows;
+    const bal = lastMonth.balances;
+    
+    const totalIn = Object.values(inf).reduce((a, b) => a + b, 0);
+    const totalOut = Object.values(out).reduce((a, b) => a + b, 0);
+    
+    document.getElementById('statsRow').innerHTML = `
+        <div class="stat-card">
+            <div class="stat-label">Annual Inflow</div>
+            <div class="stat-value positive">${fmt(totalIn)}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Annual Outflow</div>
+            <div class="stat-value">${fmt(totalOut)}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Year-End Investment</div>
+            <div class="stat-value positive">${fmt(bal.investment)}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Year-End Mortgage</div>
+            <div class="stat-value ${bal.mortgage > 0 ? 'negative' : 'positive'}">${fmt(bal.mortgage)}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Year-End Net Worth</div>
+            <div class="stat-value positive">${fmt(bal.net_worth)}</div>
+        </div>
+    `;
+    
+    // Build Sankey (same logic)
+    const nodes = [];
+    const links = [];
+    const nodeMap = {};
+    
+    function addNode(name, color) {
+        if (!nodeMap[name]) {
+            nodeMap[name] = nodes.length;
+            nodes.push({ name, color });
+        }
+        return nodeMap[name];
+    }
+    
+    const cmpIdx = addNode('CMP', colors.cmp);
+    
+    if (inf.h_salary_net > 0) {
+        const idx = addNode('H Salary', colors.h_salary);
+        links.push({ source: idx, target: cmpIdx, value: inf.h_salary_net, color: colors.h_salary });
+    }
+    if (inf.w_salary_net > 0) {
+        const idx = addNode('W Salary', colors.w_salary);
+        links.push({ source: idx, target: cmpIdx, value: inf.w_salary_net, color: colors.w_salary });
+    }
+    if (inf.h_rsu_net > 0) {
+        const idx = addNode('H RSU', colors.h_rsu);
+        links.push({ source: idx, target: cmpIdx, value: inf.h_rsu_net, color: colors.h_rsu });
+    }
+    if (inf.w_rsu_net > 0) {
+        const idx = addNode('W RSU', colors.w_rsu);
+        links.push({ source: idx, target: cmpIdx, value: inf.w_rsu_net, color: colors.w_rsu });
+    }
+    if (inf.yt_net > 0) {
+        const idx = addNode('YouTube', colors.youtube);
+        links.push({ source: idx, target: cmpIdx, value: inf.yt_net, color: colors.youtube });
+    }
+    if (inf.ownsap_to_cmp > 0) {
+        const idx = addNode('OWNSAP (Sold)', colors.ownsap_sell);
+        links.push({ source: idx, target: cmpIdx, value: inf.ownsap_to_cmp, color: colors.ownsap_sell });
+    }
+    
+    if (out.mortgage_payment > 0) {
+        const idx = addNode('Mortgage', colors.mortgage);
+        links.push({ source: cmpIdx, target: idx, value: out.mortgage_payment, color: colors.mortgage });
+    }
+    if (out.sondertilgung > 0) {
+        const idx = addNode('Sondertilgung', colors.sondertilgung);
+        links.push({ source: cmpIdx, target: idx, value: out.sondertilgung, color: colors.sondertilgung });
+    }
+    if (out.high_apr_payment > 0) {
+        const idx = addNode('High-APR Debt', colors.high_apr);
+        links.push({ source: cmpIdx, target: idx, value: out.high_apr_payment, color: colors.high_apr });
+    }
+    if (out.fixed_debt_payment > 0) {
+        const idx = addNode('Fixed Loans', colors.fixed_debt);
+        links.push({ source: cmpIdx, target: idx, value: out.fixed_debt_payment, color: colors.fixed_debt });
+    }
+    if (out.sap_loan_payment > 0) {
+        const idx = addNode('SAP Loan', colors.sap_loan);
+        links.push({ source: cmpIdx, target: idx, value: out.sap_loan_payment, color: colors.sap_loan });
+    }
+    if (out.expenses > 0) {
+        const idx = addNode('Expenses', colors.expenses);
+        links.push({ source: cmpIdx, target: idx, value: out.expenses, color: colors.expenses });
+    }
+    if (out.inv_ownsap > 0) {
+        const invIdx = addNode('Investment', colors.investment);
+        const ownsapIdx = addNode('OWNSAP', colors.ownsap_inv);
+        links.push({ source: ownsapIdx, target: invIdx, value: out.inv_ownsap, color: colors.ownsap_inv });
+    }
+    if (out.inv_excess > 0) {
+        let invIdx = nodeMap['Investment'];
+        if (invIdx === undefined) invIdx = addNode('Investment', colors.investment);
+        links.push({ source: cmpIdx, target: invIdx, value: out.inv_excess, color: colors.investment });
+    }
+    if (out.cash_add > 0) {
+        const idx = addNode('Cashpile', colors.cashpile);
+        links.push({ source: cmpIdx, target: idx, value: out.cash_add, color: colors.cashpile });
+    }
+    
+    drawSankey(nodes, links);
+    updateLegend(nodes);
+}
+
+// ============ SANKEY DRAWING ============
+
+function drawSankey(nodes, links) {
+    const container = document.getElementById('sankey');
+    container.innerHTML = '';
+    
+    if (links.length === 0) {
+        container.innerHTML = '<div class="loading"><span>No flow data for this period</span></div>';
+        return;
+    }
+    
+    const width = container.clientWidth;
+    const height = Math.max(450, nodes.length * 45);
+    
+    const svg = d3.select('#sankey')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+    
+    const sankey = d3.sankey()
+        .nodeWidth(20)
+        .nodePadding(18)
+        .extent([[1, 1], [width - 1, height - 6]]);
+    
+    const graph = sankey({
+        nodes: nodes.map(d => ({ ...d })),
+        links: links.map(d => ({ ...d }))
+    });
+    
+    // Links
+    svg.append('g')
+        .selectAll('path')
+        .data(graph.links)
+        .join('path')
+        .attr('class', 'link')
+        .attr('d', d3.sankeyLinkHorizontal())
+        .attr('stroke', d => d.color)
+        .attr('stroke-width', d => Math.max(1, d.width))
+        .on('mouseover', showLinkTooltip)
+        .on('mouseout', hideTooltip);
+    
+    // Nodes
+    const node = svg.append('g')
+        .selectAll('g')
+        .data(graph.nodes)
+        .join('g')
+        .attr('class', 'node');
+    
+    node.append('rect')
+        .attr('x', d => d.x0)
+        .attr('y', d => d.y0)
+        .attr('height', d => d.y1 - d.y0)
+        .attr('width', d => d.x1 - d.x0)
+        .attr('fill', d => d.color)
+        .attr('rx', 3)
+        .on('mouseover', showNodeTooltip)
+        .on('mouseout', hideTooltip);
+    
+    node.append('text')
+        .attr('x', d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+        .attr('y', d => (d.y1 + d.y0) / 2)
+        .attr('dy', '0.35em')
+        .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+        .text(d => `${d.name}: ${fmt(d.value)}`);
+}
+
+// ============ TOOLTIPS ============
+
+function showLinkTooltip(event, d) {
+    const tooltip = document.getElementById('tooltip');
+    tooltip.innerHTML = `
+        <div class="tooltip-title">${d.source.name} → ${d.target.name}</div>
+        <div class="tooltip-value">${fmt(d.value)}</div>
+    `;
+    tooltip.style.left = (event.pageX + 10) + 'px';
+    tooltip.style.top = (event.pageY - 10) + 'px';
+    tooltip.classList.add('visible');
+}
+
+function showNodeTooltip(event, d) {
+    const tooltip = document.getElementById('tooltip');
+    const inflow = d.targetLinks.reduce((sum, l) => sum + l.value, 0);
+    const outflow = d.sourceLinks.reduce((sum, l) => sum + l.value, 0);
+    
+    tooltip.innerHTML = `
+        <div class="tooltip-title">${d.name}</div>
+        ${inflow > 0 ? `<div>Inflow: <span class="tooltip-value">${fmt(inflow)}</span></div>` : ''}
+        ${outflow > 0 ? `<div>Outflow: <span class="tooltip-value">${fmt(outflow)}</span></div>` : ''}
+    `;
+    tooltip.style.left = (event.pageX + 10) + 'px';
+    tooltip.style.top = (event.pageY - 10) + 'px';
+    tooltip.classList.add('visible');
+}
+
+function hideTooltip() {
+    document.getElementById('tooltip').classList.remove('visible');
+}
+
+function updateLegend(nodes) {
+    document.getElementById('legend').innerHTML = nodes.map(n => `
+        <div class="legend-item">
+            <div class="legend-color" style="background: ${n.color}"></div>
+            <span>${n.name}</span>
+        </div>
+    `).join('');
+}
+
+// Start
+init();
+</script>
+</body>
+</html>
