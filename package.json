@@ -1,6 +1,6 @@
 {
   "name": "shadowledger-discord-bot",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Discord bot for ShadowLedger expense tracking",
   "main": "index.js",
   "scripts": {
