@@ -5,61 +5,114 @@
  * 
  * Flow: Discord #expenses → THIS BOT → Cloudflare Worker → Apps Script
  * 
- * Hosted on: Render.com (free tier)
+ * Hosted on: Render.com (free Web Service tier)
  * 
- * Version: 1.0.0
+ * IMPORTANT: This version includes a keep-alive mechanism to prevent
+ * Render's free tier from sleeping after 15 minutes of inactivity.
+ * 
+ * Version: 1.1.0
  * Date: 2025-12-17
  */
 
 const { Client, GatewayIntentBits } = require('discord.js');
+const http = require('http');
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION (from environment variables)
 // ═══════════════════════════════════════════════════════════════════════════
-// WHY environment variables? 
-// Security! These values are secret and shouldn't be written in the code.
-// Render.com lets us set them separately in their dashboard.
 
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL;
 const EXPENSE_CHANNEL_NAME = process.env.EXPENSE_CHANNEL_NAME || 'expenses';
+const PORT = process.env.PORT || 3000;
+const RENDER_SERVICE_URL = process.env.RENDER_EXTERNAL_URL || process.env.RENDER_SERVICE_URL;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// VALIDATION - Check that required config exists
+// VALIDATION
 // ═══════════════════════════════════════════════════════════════════════════
 
 if (!BOT_TOKEN) {
   console.error('❌ ERROR: DISCORD_BOT_TOKEN environment variable not set!');
-  console.error('   Please set it in Render.com dashboard → Environment');
   process.exit(1);
 }
 
 if (!CLOUDFLARE_WORKER_URL) {
   console.error('❌ ERROR: CLOUDFLARE_WORKER_URL environment variable not set!');
-  console.error('   Please set it in Render.com dashboard → Environment');
   process.exit(1);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CREATE DISCORD CLIENT
+// HTTP SERVER (Required for Render Web Service + Keep-Alive)
 // ═══════════════════════════════════════════════════════════════════════════
-// WHY these intents? Discord requires you to declare what data you need.
-// - Guilds: To see server info
-// - GuildMessages: To receive messages
-// - MessageContent: To read what the messages say (requires enabled intent!)
+// WHY: Render's free Web Service tier requires an HTTP server.
+//      We also use this for health checks and keep-alive pings.
+
+const server = http.createServer((req, res) => {
+  if (req.url === '/health' || req.url === '/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'healthy',
+      service: 'ShadowLedger Discord Bot',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    }));
+  } else if (req.url === '/ping') {
+    // Keep-alive endpoint
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('pong');
+  } else {
+    res.writeHead(404);
+    res.end('Not found');
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`🌐 HTTP server listening on port ${PORT}`);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KEEP-ALIVE MECHANISM
+// ═══════════════════════════════════════════════════════════════════════════
+// WHY: Render's free tier sleeps after 15 minutes of no HTTP requests.
+//      We ping ourselves every 14 minutes to stay awake.
+
+function startKeepAlive() {
+  if (!RENDER_SERVICE_URL) {
+    console.log('⚠️ RENDER_EXTERNAL_URL not set - keep-alive disabled (local dev mode)');
+    return;
+  }
+  
+  const KEEP_ALIVE_INTERVAL = 14 * 60 * 1000; // 14 minutes in milliseconds
+  
+  setInterval(async () => {
+    try {
+      const response = await fetch(`${RENDER_SERVICE_URL}/ping`);
+      if (response.ok) {
+        console.log(`💓 Keep-alive ping successful at ${new Date().toISOString()}`);
+      }
+    } catch (error) {
+      console.error('💔 Keep-alive ping failed:', error.message);
+    }
+  }, KEEP_ALIVE_INTERVAL);
+  
+  console.log(`💓 Keep-alive started: pinging every 14 minutes`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DISCORD CLIENT
+// ═══════════════════════════════════════════════════════════════════════════
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.MessageContent,  // Requires MESSAGE CONTENT INTENT enabled!
   ]
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BOT READY EVENT
 // ═══════════════════════════════════════════════════════════════════════════
-// This runs once when the bot successfully connects to Discord
 
 client.once('ready', () => {
   console.log('═══════════════════════════════════════════════════════════');
@@ -70,45 +123,34 @@ client.once('ready', () => {
   console.log(`  Forwarding to: ${CLOUDFLARE_WORKER_URL}`);
   console.log(`  Time: ${new Date().toISOString()}`);
   console.log('═══════════════════════════════════════════════════════════');
+  
+  // Start keep-alive after bot is ready
+  startKeepAlive();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MESSAGE EVENT
 // ═══════════════════════════════════════════════════════════════════════════
-// This runs every time a message is sent in any channel the bot can see
 
 client.on('messageCreate', async (message) => {
   
-  // ─────────────────────────────────────────────────────────────────────────
-  // FILTER 1: Ignore messages from bots (including itself)
-  // ─────────────────────────────────────────────────────────────────────────
-  if (message.author.bot) {
-    return; // Exit early, don't process
-  }
+  // Ignore bot messages
+  if (message.author.bot) return;
   
-  // ─────────────────────────────────────────────────────────────────────────
-  // FILTER 2: Only process messages from #expenses channel
-  // ─────────────────────────────────────────────────────────────────────────
-  if (message.channel.name !== EXPENSE_CHANNEL_NAME) {
-    return; // Exit early, wrong channel
-  }
+  // Only process messages from #expenses channel
+  if (message.channel.name !== EXPENSE_CHANNEL_NAME) return;
   
-  // ─────────────────────────────────────────────────────────────────────────
-  // LOG THE MESSAGE (visible in Render.com logs)
-  // ─────────────────────────────────────────────────────────────────────────
+  // Log the message
   console.log('───────────────────────────────────────────────────────────');
   console.log(`📨 Message received at ${new Date().toISOString()}`);
   console.log(`   From: ${message.author.username}`);
   console.log(`   Content: "${message.content}"`);
   
-  // ─────────────────────────────────────────────────────────────────────────
-  // FORWARD TO CLOUDFLARE WORKER
-  // ─────────────────────────────────────────────────────────────────────────
+  // Forward to Cloudflare Worker
   try {
     const payload = {
       content: message.content,
       username: message.author.username,
-      // Include extra info for debugging (optional)
       channelId: message.channel.id,
       channelName: message.channel.name,
       guildName: message.guild?.name || 'DM',
@@ -119,9 +161,7 @@ client.on('messageCreate', async (message) => {
     
     const response = await fetch(CLOUDFLARE_WORKER_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
     
@@ -131,7 +171,7 @@ client.on('messageCreate', async (message) => {
       console.log(`✅ Successfully forwarded! Status: ${response.status}`);
       console.log(`   Response: ${responseText.substring(0, 200)}`);
     } else {
-      console.error(`⚠️ Worker returned error status: ${response.status}`);
+      console.error(`⚠️ Worker returned error: ${response.status}`);
       console.error(`   Response: ${responseText}`);
     }
     
@@ -150,12 +190,8 @@ client.on('error', (error) => {
   console.error('❌ Discord client error:', error);
 });
 
-client.on('warn', (warning) => {
-  console.warn('⚠️ Discord client warning:', warning);
-});
-
 // ═══════════════════════════════════════════════════════════════════════════
-// LOGIN TO DISCORD
+// LOGIN
 // ═══════════════════════════════════════════════════════════════════════════
 
 console.log('🔄 Connecting to Discord...');
