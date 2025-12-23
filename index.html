@@ -601,6 +601,7 @@ let currentYear = 2026;
 let monthFrom = 1;
 let monthTo = 1;
 let expenseCache = {}; // Cache expense data by month
+let currentExpenseData = null; // Pre-fetched expense data for current view
 
 // ============ INITIALIZATION ============
 
@@ -712,6 +713,21 @@ async function fetchExpenseData(month) {
         }
     } catch (err) {
         return { success: false, error: err.message };
+    }
+}
+
+async function prefetchExpenseData() {
+    // Pre-fetch expense data for current month range
+    const months = [];
+    for (let m = monthFrom; m <= monthTo; m++) {
+        months.push(getMonthKey(currentYear, m));
+    }
+    
+    try {
+        const results = await Promise.all(months.map(m => fetchExpenseData(m)));
+        currentExpenseData = aggregateExpenseData(results);
+    } catch (err) {
+        currentExpenseData = null;
     }
 }
 
@@ -840,13 +856,16 @@ function openModal(modalId) {
 
 // ============ RENDERING ============
 
-function render() {
+async function render() {
     const dataArr = getSelectedData();
     if (!dataArr.length) return;
     
     const data = aggregateData(dataArr);
     const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 
                         'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    // Pre-fetch expense data for hover tooltips
+    prefetchExpenseData();
     
     let title = '';
     if (monthFrom === monthTo) {
@@ -936,7 +955,17 @@ function renderStats(data) {
     const cmpDet = data.cmp_details;
     
     const totalIn = Object.values(inf).reduce((a, b) => a + b, 0);
-    const totalOut = Object.values(out).reduce((a, b) => a + b, 0);
+    // Calculate totalOut without double-counting mortgage components
+    const totalOut = (out.mortgage_payment || 0) + 
+                     (out.sondertilgung || 0) + 
+                     (out.high_apr_payment || 0) + 
+                     (out.low_apr_payment || 0) + 
+                     (out.fixed_debt_payment || 0) + 
+                     (out.sap_loan_payment || 0) + 
+                     (out.expenses || 0) + 
+                     (out.inv_ownsap || 0) + 
+                     (out.inv_excess || 0) + 
+                     (out.cash_add || 0);
     
     document.getElementById('statsRow').innerHTML = `
         <div class="stat-card">
@@ -1563,8 +1592,24 @@ function showNodeTooltip(event, d) {
     const data = d.data;
     
     // Show relevant details based on node type
-    if (d.name === 'Expenses' && d.clickable) {
-        html += `<div class="tooltip-hint">Click for category breakdown</div>`;
+    if (d.name === 'Expenses') {
+        // Show expense breakdown on hover
+        if (currentExpenseData && currentExpenseData.success && currentExpenseData.categories) {
+            html += `<div class="tooltip-divider"></div>`;
+            const topCategories = currentExpenseData.categories.slice(0, 6); // Top 6
+            topCategories.forEach(cat => {
+                if (cat.spent > 0) {
+                    const budgetStr = cat.budget !== null ? fmt(cat.budget) : 'N/A';
+                    const pctStr = cat.percent !== null ? `${cat.percent}%` : '';
+                    html += `<div class="tooltip-row"><span class="tooltip-label">${cat.status} ${cat.name}</span><span class="tooltip-value">${fmt(cat.spent)} / ${budgetStr}</span></div>`;
+                }
+            });
+            if (currentExpenseData.categories.length > 6) {
+                html += `<div class="tooltip-hint">Click for all ${currentExpenseData.categories.length} categories</div>`;
+            }
+        } else {
+            html += `<div class="tooltip-hint">Click for category breakdown</div>`;
+        }
     } else if (d.name.includes('High-APR') || d.name.includes('Fixed') || d.name.includes('Low-APR') || d.name.includes('SAP Loan')) {
         if (d.clickable) {
             html += `<div class="tooltip-hint">Click for debt details</div>`;
