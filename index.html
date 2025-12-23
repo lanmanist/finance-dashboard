@@ -219,7 +219,7 @@
             opacity: 0;
             transition: opacity 0.2s;
             z-index: 1000;
-            max-width: 350px;
+            max-width: 450px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.5);
         }
         .tooltip.visible { opacity: 1; }
@@ -1590,30 +1590,67 @@ function showNodeTooltip(event, d) {
     html += `<div class="tooltip-row"><span class="tooltip-label">Total</span><span class="tooltip-value">${fmt(d.value)}</span></div>`;
     
     const data = d.data;
+    const debtDet = data; // debt_details is stored in data
     
     // Show relevant details based on node type
     if (d.name === 'Expenses') {
-        // Show expense breakdown on hover
+        // Show ALL expense categories on hover
         if (currentExpenseData && currentExpenseData.success && currentExpenseData.categories) {
             html += `<div class="tooltip-divider"></div>`;
-            const topCategories = currentExpenseData.categories.slice(0, 6); // Top 6
-            topCategories.forEach(cat => {
-                if (cat.spent > 0) {
-                    const budgetStr = cat.budget !== null ? fmt(cat.budget) : 'N/A';
-                    const pctStr = cat.percent !== null ? `${cat.percent}%` : '';
-                    html += `<div class="tooltip-row"><span class="tooltip-label">${cat.status} ${cat.name}</span><span class="tooltip-value">${fmt(cat.spent)} / ${budgetStr}</span></div>`;
-                }
+            html += `<div style="max-height: 350px; overflow-y: auto;">`;
+            currentExpenseData.categories.forEach(cat => {
+                const budgetStr = cat.budget !== null ? fmt(cat.budget) : 'N/A';
+                const spentStr = fmt(cat.spent);
+                html += `<div class="tooltip-row"><span class="tooltip-label">${cat.status} ${cat.name}</span><span class="tooltip-value">${spentStr} / ${budgetStr}</span></div>`;
             });
-            if (currentExpenseData.categories.length > 6) {
-                html += `<div class="tooltip-hint">Click for all ${currentExpenseData.categories.length} categories</div>`;
-            }
+            html += `</div>`;
+            html += `<div class="tooltip-divider"></div>`;
+            const totalBudget = currentExpenseData.summary.total_budget ? fmt(currentExpenseData.summary.total_budget) : 'N/A';
+            const totalPct = currentExpenseData.summary.total_percent !== null ? `(${currentExpenseData.summary.total_percent}%)` : '';
+            html += `<div class="tooltip-row" style="font-weight:600;"><span class="tooltip-label">TOTAL</span><span class="tooltip-value">${fmt(currentExpenseData.summary.total_spent)} / ${totalBudget} ${totalPct}</span></div>`;
+            html += `<div class="tooltip-hint">Click for detailed view with budget bars</div>`;
         } else {
             html += `<div class="tooltip-hint">Click for category breakdown</div>`;
         }
-    } else if (d.name.includes('High-APR') || d.name.includes('Fixed') || d.name.includes('Low-APR') || d.name.includes('SAP Loan')) {
-        if (d.clickable) {
-            html += `<div class="tooltip-hint">Click for debt details</div>`;
-        }
+    } else if (d.name === 'Mortgage') {
+        // Mortgage hover details
+        html += `
+            <div class="tooltip-divider"></div>
+            <div class="tooltip-row"><span class="tooltip-label">Monthly Payment</span><span class="tooltip-value">${fmt(data.payment || d.value)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">→ Principal</span><span class="tooltip-value">${fmt(data.principal || 0)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">→ Interest</span><span class="tooltip-value">${fmt(data.interest || 0)}</span></div>
+        `;
+    } else if (d.name.includes('High-APR')) {
+        // High-APR Debt hover details
+        html += `<div class="tooltip-divider"></div>`;
+        if (debtDet.tf) html += `<div class="tooltip-row"><span class="tooltip-label">TF Bank (24%)</span><span class="tooltip-value">${fmt(debtDet.tf.payment)}/mo • Bal: ${fmt(debtDet.tf.balance)}</span></div>`;
+        if (debtDet.db) html += `<div class="tooltip-row"><span class="tooltip-label">Deutsche Bank (15%)</span><span class="tooltip-value">${fmt(debtDet.db.payment)}/mo • Bal: ${fmt(debtDet.db.balance)}</span></div>`;
+        if (debtDet.klarna) html += `<div class="tooltip-row"><span class="tooltip-label">Klarna (15%)</span><span class="tooltip-value">${fmt(debtDet.klarna.payment)}/mo • Bal: ${fmt(debtDet.klarna.balance)}</span></div>`;
+        if (debtDet.nordea) html += `<div class="tooltip-row"><span class="tooltip-label">Nordea (8%)</span><span class="tooltip-value">${fmt(debtDet.nordea.payment)}/mo • Bal: ${fmt(debtDet.nordea.balance)}</span></div>`;
+        if (debtDet.aktia) html += `<div class="tooltip-row"><span class="tooltip-label">Aktia (6%)</span><span class="tooltip-value">${fmt(debtDet.aktia.payment)}/mo • Bal: ${fmt(debtDet.aktia.balance)}</span></div>`;
+        html += `<div class="tooltip-hint">Click for detailed breakdown</div>`;
+    } else if (d.name.includes('Low-APR')) {
+        // Low-APR Debt hover details
+        html += `<div class="tooltip-divider"></div>`;
+        if (debtDet.scalable) html += `<div class="tooltip-row"><span class="tooltip-label">Scalable (3.3%)</span><span class="tooltip-value">${fmt(debtDet.scalable.payment)}/mo • Bal: ${fmt(debtDet.scalable.balance)}</span></div>`;
+        if (debtDet.ak) html += `<div class="tooltip-row"><span class="tooltip-label">AK Payback (0%)</span><span class="tooltip-value">${fmt(debtDet.ak.payment)}/mo • Bal: ${fmt(debtDet.ak.balance)}</span></div>`;
+        html += `<div class="tooltip-hint">Click for detailed breakdown</div>`;
+    } else if (d.name === 'Fixed Loans') {
+        // Fixed Loans hover details
+        html += `<div class="tooltip-divider"></div>`;
+        if (debtDet.revolut) html += `<div class="tooltip-row"><span class="tooltip-label">Revolut</span><span class="tooltip-value">${fmt(debtDet.revolut.payment)}/mo</span></div>`;
+        if (debtDet.c3) html += `<div class="tooltip-row"><span class="tooltip-label">C3 Family</span><span class="tooltip-value">${fmt(debtDet.c3.payment)}/mo</span></div>`;
+        if (debtDet.student) html += `<div class="tooltip-row"><span class="tooltip-label">Student Loan</span><span class="tooltip-value">${fmt(debtDet.student.payment)}/mo</span></div>`;
+        if (debtDet.ikea) html += `<div class="tooltip-row"><span class="tooltip-label">IKEA Card</span><span class="tooltip-value">${fmt(debtDet.ikea.payment)}/mo</span></div>`;
+        if (debtDet.n26) html += `<div class="tooltip-row"><span class="tooltip-label">N26 Overdraft</span><span class="tooltip-value">${fmt(debtDet.n26.payment)}/mo</span></div>`;
+        html += `<div class="tooltip-hint">Click for balances & details</div>`;
+    } else if (d.name === 'SAP Loan') {
+        // SAP Loan hover details
+        html += `<div class="tooltip-divider"></div>`;
+        html += `<div class="tooltip-row"><span class="tooltip-label">Monthly Payment</span><span class="tooltip-value">${fmt(data.payment || d.value)}</span></div>`;
+        html += `<div class="tooltip-row"><span class="tooltip-label">Remaining Balance</span><span class="tooltip-value">${fmt(data.balance || 0)}</span></div>`;
+        html += `<div class="tooltip-row"><span class="tooltip-label">Interest Rate</span><span class="tooltip-value">0% (employee benefit)</span></div>`;
+        html += `<div class="tooltip-hint">Click for H/W breakdown</div>`;
     } else if (d.name === 'Investment' && data.begin !== undefined) {
         html += `
             <div class="tooltip-divider"></div>
@@ -1632,13 +1669,6 @@ function showNodeTooltip(event, d) {
             <div class="tooltip-row"><span class="tooltip-label">Tax & Social</span><span class="tooltip-value">-${fmt(data.tax)}</span></div>
             <div class="tooltip-divider"></div>
             <div class="tooltip-row"><span class="tooltip-label">Net</span><span class="tooltip-value">${fmt(data.net)}</span></div>
-        `;
-    } else if (d.name === 'Mortgage' && data.payment) {
-        html += `
-            <div class="tooltip-divider"></div>
-            <div class="tooltip-row"><span class="tooltip-label">Payment</span><span class="tooltip-value">${fmt(data.payment)}</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">Principal</span><span class="tooltip-value">${fmt(data.principal)}</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">Interest</span><span class="tooltip-value">${fmt(data.interest)}</span></div>
         `;
     }
     
