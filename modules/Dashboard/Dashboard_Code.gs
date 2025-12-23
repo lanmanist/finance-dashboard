@@ -1,26 +1,25 @@
 /**
- * Financial Sankey Dashboard - Google Apps Script API v2
+ * Financial Sankey Dashboard - Google Apps Script API v3
  * =======================================================
  * 
- * UPDATES in v2:
- * - Added gross income data for detailed view
- * - Added deduction breakdowns
- * - Added debt details (individual balances)
- * - Added investment details (contributions, growth)
- * - Added mortgage details (interest/principal split, months remaining)
- * - Added net worth breakdown
+ * UPDATES in v3 (v6.1 Model Sync):
+ * - Updated column mapping from 77 to 88 columns
+ * - SAP Loan now split into H/W with TaxedAdv columns
+ * - Added Low-APR Debt section (Scalable, AK)
+ * - Added Other_Fam_Net_Inc column
+ * - All column positions shifted to match v6.1 model
  * 
  * SETUP:
  * 1. Open your Google Sheet
- * 2. Extensions â†’ Apps Script
+ * 2. Extensions → Apps Script
  * 3. Replace all code with this file
- * 4. Save, then Deploy â†’ Manage deployments â†’ Edit â†’ Deploy new version
+ * 4. Save, then Deploy → Manage deployments → Edit → Deploy new version
  */
 
 // ============ CONFIGURATION ============
 const SHEET_NAME = 'Monthly_Model_v4';
 
-// Column mapping (1-indexed)
+// Column mapping (1-indexed) - Updated for v6.1 (88 columns)
 const COL = {
   // Date Info (A-E)
   month: 1,
@@ -54,87 +53,102 @@ const COL = {
   w_ownsap_val: 23,
   ownsap_total: 24,
   
-  // YouTube (Y-AA)
-  yt_gross: 25,
-  yt_tax_res: 26,
-  yt_net: 27,
+  // SAP Loan Detail - NEW in v6 (Y-AF)
+  h_sap_taxed_adv: 25,
+  h_sap_loan_pmt: 26,
+  h_sap_loan_bal: 27,
+  w_sap_taxed_adv: 28,
+  w_sap_loan_pmt: 29,
+  w_sap_loan_bal: 30,
+  sap_loan_pmt: 31,      // Total
+  sap_loan_bal: 32,      // Total
   
-  // SAP Loan (AB-AC)
-  sap_loan_pmt: 28,
-  sap_loan_bal: 29,
+  // YouTube (AG-AI) - MOVED
+  yt_gross: 33,
+  yt_tax_res: 34,
+  yt_net: 35,
   
-  // CMP (AD-AG)
-  cmp_carry: 30,
-  cmp_inflow: 31,
-  cmp_available: 32,
-  cmp_end: 33,
+  // Other Income - NEW in v6.1 (AJ)
+  other_fam_net_inc: 36,
   
-  // Mortgage (AH-AM)
-  mort_begin: 34,
-  mort_pmt: 35,
-  mort_int: 36,
-  mort_princ: 37,
-  sondertilgung: 38,
-  mort_end: 39,
+  // CMP (AK-AN) - MOVED
+  cmp_carry: 37,
+  cmp_inflow: 38,
+  cmp_available: 39,
+  cmp_end: 40,
   
-  // High-APR Debt (AN-AX)
-  d_tf_pmt: 40,
-  d_tf_bal: 41,
-  d_klarna_pmt: 42,
-  d_klarna_bal: 43,
-  d_nordea_pmt: 44,
-  d_nordea_bal: 45,
-  d_db_pmt: 46,
-  d_db_bal: 47,
-  d_aktia_pmt: 48,
-  d_aktia_bal: 49,
-  d_highapr_total: 50,
+  // Mortgage (AO-AT) - MOVED
+  mort_begin: 41,
+  mort_pmt: 42,
+  mort_int: 43,
+  mort_princ: 44,
+  sondertilgung: 45,
+  mort_end: 46,
   
-  // Fixed Loans (AY-BD)
-  d_revolut_pmt: 51,
-  d_c3_pmt: 52,
-  d_student_pmt: 53,
-  d_ikea_pmt: 54,
-  d_n26_pmt: 55,
-  d_fixed_total: 56,
+  // High-APR Debt (AU-BE) - MOVED
+  d_tf_pmt: 47,
+  d_tf_bal: 48,
+  d_klarna_pmt: 49,
+  d_klarna_bal: 50,
+  d_nordea_pmt: 51,
+  d_nordea_bal: 52,
+  d_db_pmt: 53,
+  d_db_bal: 54,
+  d_aktia_pmt: 55,
+  d_aktia_bal: 56,
+  d_highapr_total: 57,
   
-  // Expenses (BE-BF)
-  exp_budget: 57,
-  exp_alloc: 58,
+  // Low-APR/Future Debt - NEW in v6 (BF-BI)
+  d_scalable_pmt: 58,
+  d_scalable_bal: 59,
+  d_ak_pmt: 60,
+  d_ak_bal: 61,
   
-  // Investment (BG-BK)
-  inv_begin: 59,
-  inv_ownsap: 60,
-  inv_excess: 61,
-  inv_growth: 62,
-  inv_end: 63,
+  // Fixed Loans (BJ-BO) - MOVED
+  d_revolut_pmt: 62,
+  d_c3_pmt: 63,
+  d_student_pmt: 64,
+  d_ikea_pmt: 65,
+  d_n26_pmt: 66,
+  d_fixed_total: 67,
   
-  // Cashpile (BL-BN)
-  cash_begin: 64,
-  cash_add: 65,
-  cash_end: 66,
+  // Expenses (BP-BQ)
+  exp_budget: 68,
+  exp_alloc: 69,
   
-  // Tax Reserve (BO-BQ)
-  taxres_beg: 67,
-  taxres_add: 68,
-  taxres_end: 69,
+  // Investment (BR-BV) - MOVED
+  inv_begin: 70,
+  inv_ownsap: 71,
+  inv_excess: 72,
+  inv_growth: 73,
+  inv_end: 74,
   
-  // Time Account (BR-BS)
-  h_ta_hrs: 70,
-  w_ta_hrs: 71,
+  // Cashpile (BW-BY) - MOVED
+  cash_begin: 75,
+  cash_add: 76,
+  cash_end: 77,
   
-  // Net Worth (BT-BY)
-  nw_invest: 72,
-  nw_house: 73,
-  nw_mortgage: 74,
-  nw_debt: 75,
-  nw_ta: 76,
-  nw_total: 77,
+  // Tax Reserve (BZ-CB) - MOVED
+  taxres_beg: 78,
+  taxres_add: 79,
+  taxres_end: 80,
+  
+  // Time Account (CC-CD) - MOVED
+  h_ta_hrs: 81,
+  w_ta_hrs: 82,
+  
+  // Net Worth (CE-CJ) - MOVED + EXPANDED
+  nw_invest: 83,
+  nw_house: 84,
+  nw_mortgage: 85,
+  nw_debt: 86,
+  nw_ta: 87,
+  nw_total: 88,
 };
 
 // ============ MAIN ENTRY POINT ============
 
-function doGet(e) {
+function getDashboardData(e) {
   const output = ContentService.createTextOutput();
   output.setMimeType(ContentService.MimeType.JSON);
   
@@ -228,9 +242,20 @@ function extractFinancialData() {
     const yt_net = get('yt_net');
     const ownsap_total = get('ownsap_total');
     const inv_ownsap = get('inv_ownsap');
+    const other_fam_net_inc = get('other_fam_net_inc'); // NEW in v6.1
     
     const ownsap_to_cmp = (inv_ownsap === 0 && ownsap_total > 0) ? ownsap_total : 0;
     const ownsap_to_inv = inv_ownsap;
+    
+    // SAP Loan details - NEW split in v6
+    const h_sap_taxed_adv = get('h_sap_taxed_adv');
+    const w_sap_taxed_adv = get('w_sap_taxed_adv');
+    const h_sap_loan_pmt = get('h_sap_loan_pmt');
+    const w_sap_loan_pmt = get('w_sap_loan_pmt');
+    const h_sap_loan_bal = get('h_sap_loan_bal');
+    const w_sap_loan_bal = get('w_sap_loan_bal');
+    const sap_loan_pmt = get('sap_loan_pmt');
+    const sap_loan_bal = get('sap_loan_bal');
     
     // Mortgage details
     const mort_begin = get('mort_begin');
@@ -243,7 +268,7 @@ function extractFinancialData() {
     // Calculate months remaining (approximate)
     const mort_months_remaining = mort_end > 0 ? Math.ceil(mort_end / (mort_princ > 0 ? mort_princ : 1000)) : 0;
     
-    // Debt details
+    // High-APR Debt details
     const tf_pmt = get('d_tf_pmt');
     const tf_bal = get('d_tf_bal');
     const klarna_pmt = get('d_klarna_pmt');
@@ -254,19 +279,24 @@ function extractFinancialData() {
     const db_bal = get('d_db_bal');
     const aktia_pmt = get('d_aktia_pmt');
     const aktia_bal = get('d_aktia_bal');
+    const high_apr_pmt = get('d_highapr_total');
     
+    // Low-APR Debt - NEW in v6
+    const scalable_pmt = get('d_scalable_pmt');
+    const scalable_bal = get('d_scalable_bal');
+    const ak_pmt = get('d_ak_pmt');
+    const ak_bal = get('d_ak_bal');
+    
+    // Fixed Loans
     const revolut_pmt = get('d_revolut_pmt');
     const c3_pmt = get('d_c3_pmt');
     const student_pmt = get('d_student_pmt');
     const ikea_pmt = get('d_ikea_pmt');
     const n26_pmt = get('d_n26_pmt');
-    
-    const high_apr_pmt = get('d_highapr_total');
     const fixed_debt_pmt = get('d_fixed_total');
-    const sap_loan_pmt = get('sap_loan_pmt');
-    const sap_loan_bal = get('sap_loan_bal');
     
     const high_apr_remaining = tf_bal + klarna_bal + nordea_bal + db_bal + aktia_bal;
+    const low_apr_remaining = scalable_bal + ak_bal;
     
     // Investment details
     const inv_begin = get('inv_begin');
@@ -315,7 +345,7 @@ function extractFinancialData() {
       is_post_mortgage: is_post_mortgage,
       is_debt_attack_phase: is_debt_attack_phase,
       
-      // NEW: Gross income for detailed view
+      // Gross income for detailed view
       gross: {
         h_salary: round(h_gross_salary),
         w_salary: round(w_gross_salary),
@@ -324,7 +354,7 @@ function extractFinancialData() {
         yt: round(yt_gross)
       },
       
-      // NEW: Deduction details
+      // Deduction details
       deductions: {
         h_ta: round(h_ta_ded),
         w_ta: round(w_ta_ded),
@@ -343,7 +373,8 @@ function extractFinancialData() {
         h_rsu_net: round(h_rsu_net),
         w_rsu_net: round(w_rsu_net),
         yt_net: round(yt_net),
-        ownsap_to_cmp: round(ownsap_to_cmp)
+        ownsap_to_cmp: round(ownsap_to_cmp),
+        other_fam_net: round(other_fam_net_inc) // NEW in v6.1
       },
       
       outflows: {
@@ -352,6 +383,7 @@ function extractFinancialData() {
         mortgage_principal: round(mort_princ),
         sondertilgung: round(sondertilgung),
         high_apr_payment: round(high_apr_pmt),
+        low_apr_payment: round(scalable_pmt + ak_pmt), // NEW in v6
         fixed_debt_payment: round(fixed_debt_pmt),
         sap_loan_payment: round(sap_loan_pmt),
         expenses: round(expenses),
@@ -360,22 +392,33 @@ function extractFinancialData() {
         cash_add: round(cash_add)
       },
       
-      // NEW: Individual debt breakdown
+      // Individual debt breakdown
       debt_details: {
+        // High-APR
         tf: { payment: round(tf_pmt), balance: round(tf_bal) },
         klarna: { payment: round(klarna_pmt), balance: round(klarna_bal) },
         nordea: { payment: round(nordea_pmt), balance: round(nordea_bal) },
         db: { payment: round(db_pmt), balance: round(db_bal) },
         aktia: { payment: round(aktia_pmt), balance: round(aktia_bal) },
-        revolut: { payment: round(revolut_pmt), balance: 0 }, // Balance not tracked per month
+        // Low-APR (NEW in v6)
+        scalable: { payment: round(scalable_pmt), balance: round(scalable_bal) },
+        ak: { payment: round(ak_pmt), balance: round(ak_bal) },
+        // Fixed
+        revolut: { payment: round(revolut_pmt), balance: 0 },
         c3: { payment: round(c3_pmt), balance: 0 },
         student: { payment: round(student_pmt), balance: 0 },
         ikea: { payment: round(ikea_pmt), balance: 0 },
         n26: { payment: round(n26_pmt), balance: 0 },
-        sap: { payment: round(sap_loan_pmt), balance: round(sap_loan_bal) }
+        // SAP Loan (now with H/W breakdown)
+        sap: { 
+          payment: round(sap_loan_pmt), 
+          balance: round(sap_loan_bal),
+          h_balance: round(h_sap_loan_bal),
+          w_balance: round(w_sap_loan_bal)
+        }
       },
       
-      // NEW: Investment breakdown
+      // Investment breakdown
       investment_details: {
         begin: round(inv_begin),
         ownsap_contrib: round(ownsap_to_inv),
@@ -384,7 +427,7 @@ function extractFinancialData() {
         end: round(inv_end)
       },
       
-      // NEW: Mortgage breakdown
+      // Mortgage breakdown
       mortgage_details: {
         begin: round(mort_begin),
         interest_rate: 3.89,
@@ -396,13 +439,14 @@ function extractFinancialData() {
         cmp: round(cmp_end),
         mortgage: round(mort_end),
         high_apr_debt: round(high_apr_remaining),
-        fixed_debt: round(sap_loan_bal), // SAP loan as main fixed debt balance
+        low_apr_debt: round(low_apr_remaining), // NEW in v6
+        fixed_debt: round(sap_loan_bal),
         investment: round(inv_end),
         cashpile: round(cash_end),
         net_worth: round(nw_total)
       },
       
-      // NEW: Net worth component breakdown
+      // Net worth component breakdown
       net_worth_breakdown: {
         investment: round(nw_invest),
         house: round(nw_house),
@@ -437,4 +481,5 @@ function testExtraction() {
   Logger.log('Sample gross: ' + JSON.stringify(data[0].gross));
   Logger.log('Sample deductions: ' + JSON.stringify(data[0].deductions));
   Logger.log('Sample debt_details: ' + JSON.stringify(data[0].debt_details));
+  Logger.log('Sample balances: ' + JSON.stringify(data[0].balances));
 }
