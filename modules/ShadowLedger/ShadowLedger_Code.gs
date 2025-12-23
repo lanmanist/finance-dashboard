@@ -72,22 +72,42 @@ function doPost(e) {
 function doGet(e) {
   const action = e.parameter ? e.parameter.action : null;
   
-  // Route to Dashboard API
+  // Route: Dashboard financial data
   if (action === 'dashboard') {
     return getDashboardData();
   }
   
+  // Route: Expense breakdown by month (NEW)
+  if (action === 'expenses') {
+    const month = e.parameter.month; // e.g., "2025-12"
+    if (!month) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: false,
+        error: 'Missing required parameter: month (format: YYYY-MM)'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    return getExpenseBreakdown(month);
+  }
+  
+  // Route: Health check
   if (action === 'test') {
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
-      message: 'ShadowLedger API v2.0.0 is running',
-      timestamp: new Date().toISOString()
+      message: 'ShadowLedger API v2.1.0 is running',
+      timestamp: new Date().toISOString(),
+      endpoints: [
+        '?action=dashboard - Financial data for Sankey',
+        '?action=expenses&month=YYYY-MM - Expense breakdown',
+        '?action=test - This health check'
+      ]
     })).setMimeType(ContentService.MimeType.JSON);
   }
   
+  // Default response
   return ContentService.createTextOutput(JSON.stringify({
     success: true,
-    message: 'ShadowLedger API v2.0.0'
+    message: 'ShadowLedger API v2.1.0',
+    hint: 'Use ?action=dashboard, ?action=expenses&month=YYYY-MM, or ?action=test'
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -1137,4 +1157,179 @@ function generateTxnId() {
   const timeStr = Utilities.formatDate(now, CONFIG.TIMEZONE, 'HHmmss');
   const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
   return `SL-${dateStr}-${timeStr}-${rand}`;
+}
+
+
+/**
+ * Get expense breakdown for a specific month
+ * Called via: ?action=expenses&month=2026-01
+ */
+function getExpenseBreakdown(month) {
+  try {
+    const ledgerSheet = getSheet(CONFIG.SHEETS.LEDGER);
+    const budgetSheet = getSheet(CONFIG.SHEETS.BUDGET);
+    
+    // Parse month parameter
+    const [year, monthNum] = month.split('-').map(Number);
+    const monthStart = new Date(year, monthNum - 1, 1);
+    const monthEnd = new Date(year, monthNum, 0); // Last day of month
+    
+    // Get all transactions for the month
+    const ledgerData = ledgerSheet.getDataRange().getValues();
+    const categoryTotals = {};
+    
+    // Initialize all categories with 0
+    CONFIG.CATEGORIES.forEach(cat => {
+      categoryTotals[cat] = 0;
+    });
+    
+    // Sum transactions by category for the specified month
+    for (let i = 1; i < ledgerData.length; i++) {
+      const txnDate = new Date(ledgerData[i][2]); // Column C: txn_date
+      const amount = ledgerData[i][3] || 0;       // Column D: amount
+      const category = ledgerData[i][6];          // Column G: category
+      
+      // Check if transaction is in the target month
+      if (txnDate >= monthStart && txnDate <= monthEnd) {
+        if (categoryTotals.hasOwnProperty(category)) {
+          categoryTotals[category] += amount;
+        } else {
+          // Handle unexpected categories
+          categoryTotals[category] = amount;
+        }
+      }
+    }
+    
+    // Get budgets for the month
+    const budgetData = budgetSheet.getDataRange().getValues();
+    const monthKey = `'${month}`; // Format: '2026-01
+    const monthKeyAlt = month;    // Also check without apostrophe
+    
+    const budgetMap = {};
+    for (let i = 1; i < budgetData.length; i++) {
+      const category = budgetData[i][0];
+      const budget = budgetData[i][1] || 0;
+      let storedMonthKey = budgetData[i][2] || '';
+      
+      // Normalize month key (remove apostrophe if present)
+      if (typeof storedMonthKey === 'string') {
+        storedMonthKey = storedMonthKey.replace(/^'/, '');
+      }
+      
+      // Match month
+      if (storedMonthKey === monthKeyAlt || storedMonthKey === month) {
+        budgetMap[category] = budget;
+      }
+    }
+    
+    // Build response
+    const categories = [];
+    let totalSpent = 0;
+    let totalBudget = 0;
+    
+    CONFIG.CATEGORIES.forEach(cat => {
+      const spent = Math.round(categoryTotals[cat] * 100) / 100;
+      const budget = budgetMap[cat];
+      const hasBudget = budget !== undefined;
+      const percent = hasBudget && budget > 0 ? Math.round((spent / budget) * 100) : null;
+      
+      categories.push({
+        name: cat,
+        spent: spent,
+        budget: hasBudget ? budget : null,
+        percent: percent,
+        status: getStatusEmoji(percent)
+      });
+      
+      totalSpent += spent;
+      if (hasBudget) {
+        totalBudget += budget;
+      }
+    });
+    
+    // Sort by spent (highest first)
+    categories.sort((a, b) => b.spent - a.spent);
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      month: month,
+      month_name: getMonthName(monthNum) + ' ' + year,
+      categories: categories,
+      summary: {
+        total_spent: Math.round(totalSpent * 100) / 100,
+        total_budget: totalBudget > 0 ? totalBudget : null,
+        total_percent: totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : null,
+        transaction_count: countTransactionsInMonth(ledgerData, monthStart, monthEnd),
+        budget_available: totalBudget > 0
+      }
+    })).setMimeType(ContentService.MimeType.JSON);
+    
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.toString(),
+      stack: error.stack
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Get status emoji based on percentage
+ */
+function getStatusEmoji(percent) {
+  if (percent === null) return 'N/A';
+  if (percent >= 100) return '🔴';
+  if (percent >= 80) return '🟠';
+  if (percent >= 50) return '🟡';
+  return '🟢';
+}
+
+/**
+ * Get month name from number
+ */
+function getMonthName(monthNum) {
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  return months[monthNum - 1] || 'Unknown';
+}
+
+/**
+ * Count transactions in a date range
+ */
+function countTransactionsInMonth(ledgerData, monthStart, monthEnd) {
+  let count = 0;
+  for (let i = 1; i < ledgerData.length; i++) {
+    const txnDate = new Date(ledgerData[i][2]);
+    if (txnDate >= monthStart && txnDate <= monthEnd) {
+      count++;
+    }
+  }
+  return count;
+}
+
+// ============ TEST FUNCTION ============
+
+function testExpenseBreakdown() {
+  // Test with current month
+  const now = new Date();
+  const month = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM');
+  
+  // Simulate the API call
+  const result = getExpenseBreakdown(month);
+  const content = result.getContent();
+  const data = JSON.parse(content);
+  
+  Logger.log('Test month: ' + month);
+  Logger.log('Success: ' + data.success);
+  Logger.log('Categories: ' + data.categories.length);
+  Logger.log('Total Spent: €' + data.summary.total_spent);
+  Logger.log('Budget Available: ' + data.summary.budget_available);
+  
+  // Log top 3 categories
+  Logger.log('\nTop 3 Categories:');
+  data.categories.slice(0, 3).forEach(cat => {
+    Logger.log(`  ${cat.name}: €${cat.spent} / €${cat.budget || 'N/A'} (${cat.percent || 'N/A'}%)`);
+  });
 }
