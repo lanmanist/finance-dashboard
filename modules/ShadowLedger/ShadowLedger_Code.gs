@@ -72,6 +72,11 @@ function doPost(e) {
 function doGet(e) {
   const action = e.parameter ? e.parameter.action : null;
   
+  // Route to Dashboard API
+  if (action === 'dashboard') {
+    return getDashboardData();
+  }
+  
   if (action === 'test') {
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
