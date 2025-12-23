@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Flow Dashboard v2 | Live from Google Sheets</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-sankey/0.12.3/d3-sankey.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0f1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2234;
+            --border: #2a3548;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-green: #22c55e;
+            --accent-blue: #3b82f6;
+            --accent-purple: #a855f7;
+            --accent-orange: #f97316;
+            --accent-red: #ef4444;
+            --accent-teal: #14b8a6;
+            --accent-yellow: #eab308;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        .container { max-width: 1600px; margin: 0 auto; padding: 24px; }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        h1 { font-size: 24px; font-weight: 600; }
+        h1 span { color: var(--accent-blue); }
+        
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            flex-wrap: wrap;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-yellow);
+            animation: pulse 2s infinite;
+        }
+        .status-dot.connected { background: var(--accent-green); animation: none; }
+        .status-dot.error { background: var(--accent-red); animation: none; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        .setup-banner {
+            background: linear-gradient(135deg, #1e3a5f 0%, #1a2234 100%);
+            border: 1px solid var(--accent-blue);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .setup-banner h3 { color: var(--accent-blue); margin-bottom: 12px; }
+        .setup-banner code {
+            background: var(--bg-primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .setup-banner ol { margin-left: 20px; line-height: 1.8; }
+        .setup-banner .api-input {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .setup-banner input {
+            flex: 1;
+            padding: 10px 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        label { font-size: 13px; color: var(--text-secondary); }
+        select, button {
+            padding: 8px 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+        }
+        select:hover, button:hover { border-color: var(--accent-blue); }
+        button.primary { background: var(--accent-blue); border-color: var(--accent-blue); }
+        button.primary:hover { background: #2563eb; }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge.bonus { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+        .badge.rsu { background: rgba(168, 85, 247, 0.2); color: var(--accent-purple); }
+        .badge.sondertilgung { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .badge.post-mortgage { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .badge.debt-attack { background: rgba(249, 115, 22, 0.2); color: var(--accent-orange); }
+        .badge.lean { background: rgba(100, 116, 139, 0.2); color: var(--text-muted); }
+        
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: border-color 0.2s, transform 0.2s;
+            position: relative;
+        }
+        .stat-card:hover { 
+            border-color: var(--accent-blue); 
+            transform: translateY(-2px);
+        }
+        .stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+        .stat-value { font-size: 20px; font-weight: 600; }
+        .stat-value.positive { color: var(--accent-green); }
+        .stat-value.negative { color: var(--accent-red); }
+        
+        .stat-tooltip {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 8px;
+            z-index: 100;
+            display: none;
+            font-size: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        .stat-card:hover .stat-tooltip { display: block; }
+        .stat-tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .stat-tooltip-row:last-child { border-bottom: none; }
+        .stat-tooltip-label { color: var(--text-secondary); }
+        .stat-tooltip-value { color: var(--text-primary); font-weight: 500; }
+        
+        .sankey-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            min-height: 500px;
+        }
+        .sankey-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .node rect { cursor: pointer; }
+        .node text { font-size: 12px; fill: var(--text-primary); }
+        .link { fill: none; stroke-opacity: 0.4; }
+        .link:hover { stroke-opacity: 0.7; }
+        
+        .tooltip {
+            position: fixed;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 13px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 1000;
+            max-width: 350px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        .tooltip.visible { opacity: 1; }
+        .tooltip-title { font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            gap: 20px;
+        }
+        .tooltip-label { color: var(--text-secondary); }
+        .tooltip-value { color: var(--accent-green); font-weight: 500; }
+        .tooltip-divider { border-top: 1px solid var(--border); margin: 8px 0; }
+        
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+        
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 400px;
+            color: var(--text-muted);
+            gap: 16px;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--accent-red);
+            border-radius: 8px;
+            padding: 16px;
+            color: var(--accent-red);
+        }
+        
+        .hidden { display: none !important; }
+        
+        .sheet-link {
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-size: 12px;
+        }
+        .sheet-link:hover { text-decoration: underline; }
+        
+        .view-toggle {
+            display: flex;
+            background: var(--bg-primary);
+            border-radius: 6px;
+            padding: 2px;
+        }
+        .view-toggle button {
+            border: none;
+            background: transparent;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .view-toggle button.active {
+            background: var(--accent-blue);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💰 Financial Flow <span>Dashboard v2</span></h1>
+            <div class="control-group">
+                <a href="https://docs.google.com/spreadsheets/d/1rTVkCLy0yqq1sByvBuM-ENWM_3ctK0V1/edit" 
+                   target="_blank" class="sheet-link">📊 Open Google Sheet</a>
+                <button onclick="refreshData()" class="primary">⟳ Refresh</button>
+            </div>
+        </header>
+        
+        <div class="setup-banner hidden" id="setupBanner">
+            <h3>⚙️ One-Time Setup Required</h3>
+            <ol>
+                <li>Open your Google Sheet</li>
+                <li>Go to <strong>Extensions → Apps Script</strong></li>
+                <li>Paste the <code>Code.gs</code> content and save</li>
+                <li>Deploy as Web App with "Anyone" access</li>
+                <li>Paste the URL below:</li>
+            </ol>
+            <div class="api-input">
+                <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+                <button onclick="saveApiUrl()" class="primary">Save & Connect</button>
+            </div>
+        </div>
+        
+        <div class="status-bar">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Not connected</span>
+            <span style="margin-left: auto; color: var(--text-muted);" id="lastUpdate"></span>
+        </div>
+        
+        <div class="controls" id="controls">
+            <div class="control-group">
+                <label>View:</label>
+                <div class="view-toggle">
+                    <button id="btnSimple" class="active" onclick="setViewMode('simple')">Simple</button>
+                    <button id="btnDetailed" onclick="setViewMode('detailed')">Detailed</button>
+                </div>
+            </div>
+            <div class="control-group">
+                <label>Year:</label>
+                <select id="yearSelect" onchange="updateMonthOptions(); render()"></select>
+            </div>
+            <div class="control-group">
+                <label>From:</label>
+                <select id="monthFromSelect" onchange="validateMonthRange(); render()"></select>
+            </div>
+            <div class="control-group">
+                <label>To:</label>
+                <select id="monthToSelect" onchange="validateMonthRange(); render()"></select>
+            </div>
+            <div id="monthBadges" style="display: flex; gap: 8px; align-items: center;"></div>
+        </div>
+        
+        <div class="stats-row" id="statsRow"></div>
+        
+        <div class="sankey-container">
+            <div class="sankey-title">
+                <span>💸 Money Flow</span>
+                <span id="flowTitle" style="font-weight: normal; color: var(--text-secondary);"></span>
+            </div>
+            <div id="sankey">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span>Connect to Google Sheets to see your data</span>
+                </div>
+            </div>
+            <div class="legend" id="legend"></div>
+        </div>
+    </div>
+    
+    <div class="tooltip" id="tooltip"></div>
+
+<script>
+// ============ CONFIGURATION ============
+let API_URL = localStorage.getItem('sankey_api_url') || '';
+let viewMode = 'simple'; // 'simple' or 'detailed'
+
+const colors = {
+    // Gross (for detailed view)
+    h_gross: '#166534',
+    w_gross: '#15803d',
+    
+    // Deductions
+    tax: '#dc2626',
+    ta_deduction: '#9333ea',
+    ownsap_ded: '#c2410c',
+    
+    // Net income
+    h_salary: '#22c55e',
+    w_salary: '#10b981',
+    h_rsu: '#a855f7',
+    w_rsu: '#c084fc',
+    youtube: '#ef4444',
+    ownsap_sell: '#f97316',
+    
+    // Hub
+    cmp: '#3b82f6',
+    
+    // Outflows
+    mortgage: '#64748b',
+    sondertilgung: '#dc2626',
+    high_apr: '#f43f5e',
+    fixed_debt: '#fb923c',
+    sap_loan: '#94a3b8',
+    expenses: '#8b5cf6',
+    investment: '#06b6d4',
+    ownsap_inv: '#0ea5e9',
+    cashpile: '#14b8a6',
+};
+
+let allData = [];
+let currentYear = 2026;
+let monthFrom = 1;
+let monthTo = 1;
+
+// ============ INITIALIZATION ============
+
+function init() {
+    if (API_URL) {
+        document.getElementById('setupBanner').classList.add('hidden');
+        refreshData();
+    } else {
+        document.getElementById('setupBanner').classList.remove('hidden');
+        document.getElementById('controls').classList.add('hidden');
+    }
+}
+
+function saveApiUrl() {
+    const url = document.getElementById('apiUrlInput').value.trim();
+    if (!url.startsWith('https://script.google.com/')) {
+        alert('Please enter a valid Google Apps Script URL');
+        return;
+    }
+    API_URL = url;
+    localStorage.setItem('sankey_api_url', url);
+    document.getElementById('setupBanner').classList.add('hidden');
+    document.getElementById('controls').classList.remove('hidden');
+    refreshData();
+}
+
+function setViewMode(mode) {
+    viewMode = mode;
+    document.getElementById('btnSimple').classList.toggle('active', mode === 'simple');
+    document.getElementById('btnDetailed').classList.toggle('active', mode === 'detailed');
+    render();
+}
+
+// ============ DATA FETCHING ============
+
+async function refreshData() {
+    if (!API_URL) {
+        document.getElementById('setupBanner').classList.remove('hidden');
+        return;
+    }
+    
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    
+    statusDot.className = 'status-dot';
+    statusText.textContent = 'Connecting to Google Sheets...';
+    document.getElementById('sankey').innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading live data...</span></div>';
+    
+    try {
+        const res = await fetch(API_URL);
+        const json = await res.json();
+        
+        if (json.success) {
+            allData = json.data;
+            statusDot.className = 'status-dot connected';
+            statusText.textContent = `Live • ${json.count} months loaded`;
+            document.getElementById('lastUpdate').textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+            
+            populateSelects();
+            render();
+        } else {
+            throw new Error(json.error || 'Failed to load data');
+        }
+    } catch (err) {
+        statusDot.className = 'status-dot error';
+        statusText.textContent = `Error: ${err.message}`;
+        document.getElementById('sankey').innerHTML = `<div class="error">${err.message}</div>`;
+    }
+}
+
+// ============ UI HELPERS ============
+
+function fmt(val) {
+    return new Intl.NumberFormat('de-DE', { 
+        style: 'currency', currency: 'EUR',
+        minimumFractionDigits: 0, maximumFractionDigits: 0
+    }).format(val);
+}
+
+function populateSelects() {
+    const years = [...new Set(allData.map(d => d.year))].sort();
+    const yearSelect = document.getElementById('yearSelect');
+    yearSelect.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+    yearSelect.value = currentYear;
+    updateMonthOptions();
+}
+
+function updateMonthOptions() {
+    currentYear = parseInt(document.getElementById('yearSelect').value);
+    const months = allData.filter(d => d.year === currentYear).map(d => d.month);
+    const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const fromSelect = document.getElementById('monthFromSelect');
+    const toSelect = document.getElementById('monthToSelect');
+    
+    const options = months.map(m => `<option value="${m}">${monthNames[m]}</option>`).join('');
+    fromSelect.innerHTML = options;
+    toSelect.innerHTML = options;
+    
+    if (months.includes(monthFrom)) {
+        fromSelect.value = monthFrom;
+    } else {
+        monthFrom = months[0];
+        fromSelect.value = monthFrom;
+    }
+    
+    if (months.includes(monthTo) && monthTo >= monthFrom) {
+        toSelect.value = monthTo;
+    } else {
+        monthTo = monthFrom;
+        toSelect.value = monthTo;
+    }
+}
+
+function validateMonthRange() {
+    monthFrom = parseInt(document.getElementById('monthFromSelect').value);
+    monthTo = parseInt(document.getElementById('monthToSelect').value);
+    
+    if (monthTo < monthFrom) {
+        monthTo = monthFrom;
+        document.getElementById('monthToSelect').value = monthTo;
+    }
+}
+
+function getSelectedData() {
+    return allData.filter(d => 
+        d.year === currentYear && 
+        d.month >= monthFrom && 
+        d.month <= monthTo
+    );
+}
+
+function aggregateData(dataArr) {
+    if (dataArr.length === 0) return null;
+    if (dataArr.length === 1) return dataArr[0];
+    
+    const agg = JSON.parse(JSON.stringify(dataArr[0]));
+    
+    // Sum numeric fields
+    const sumFields = (obj, source) => {
+        for (const key in obj) {
+            if (typeof obj[key] === 'number') {
+                obj[key] = dataArr.reduce((sum, d) => sum + (source ? d[source][key] : d[key]) || 0, 0);
+            }
+        }
+    };
+    
+    sumFields(agg.gross, 'gross');
+    sumFields(agg.deductions, 'deductions');
+    sumFields(agg.inflows, 'inflows');
+    sumFields(agg.outflows, 'outflows');
+    
+    // Use last month's balances
+    const last = dataArr[dataArr.length - 1];
+    agg.balances = last.balances;
+    agg.investment_details = last.investment_details;
+    agg.mortgage_details = last.mortgage_details;
+    agg.net_worth_breakdown = last.net_worth_breakdown;
+    agg.debt_details = last.debt_details;
+    agg.cmp_details = last.cmp_details;
+    
+    // Aggregate investment contributions
+    agg.investment_details.ownsap_contrib = dataArr.reduce((s, d) => s + d.investment_details.ownsap_contrib, 0);
+    agg.investment_details.excess_contrib = dataArr.reduce((s, d) => s + d.investment_details.excess_contrib, 0);
+    agg.investment_details.growth = dataArr.reduce((s, d) => s + d.investment_details.growth, 0);
+    agg.investment_details.begin = dataArr[0].investment_details.begin;
+    
+    // Flags: true if any month has it
+    agg.is_bonus_month = dataArr.some(d => d.is_bonus_month);
+    agg.is_rsu_month = dataArr.some(d => d.is_rsu_month);
+    agg.is_sondertilgung_month = dataArr.some(d => d.is_sondertilgung_month);
+    agg.is_post_mortgage = dataArr.every(d => d.is_post_mortgage);
+    agg.is_debt_attack_phase = dataArr.some(d => d.is_debt_attack_phase);
+    
+    return agg;
+}
+
+// ============ RENDERING ============
+
+function render() {
+    const dataArr = getSelectedData();
+    if (!dataArr.length) return;
+    
+    const data = aggregateData(dataArr);
+    const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    // Title
+    let title = '';
+    if (monthFrom === monthTo) {
+        title = `${monthNames[monthFrom]} ${currentYear}`;
+    } else {
+        title = `${monthNames[monthFrom]} - ${monthNames[monthTo]} ${currentYear}`;
+    }
+    document.getElementById('flowTitle').textContent = title;
+    
+    // Badges
+    let badges = [];
+    if (data.is_debt_attack_phase) badges.push('<span class="badge debt-attack">Debt Attack</span>');
+    if (data.is_bonus_month) badges.push('<span class="badge bonus">Bonus</span>');
+    if (data.is_rsu_month) badges.push('<span class="badge rsu">RSU</span>');
+    if (data.is_sondertilgung_month) badges.push('<span class="badge sondertilgung">Sondertilgung</span>');
+    if (data.is_post_mortgage) badges.push('<span class="badge post-mortgage">Post-Mortgage</span>');
+    if (badges.length === 0) badges.push('<span class="badge lean">Standard</span>');
+    document.getElementById('monthBadges').innerHTML = badges.join('');
+    
+    renderStats(data);
+    renderSankey(data);
+}
+
+function renderStats(data) {
+    const inf = data.inflows;
+    const out = data.outflows;
+    const bal = data.balances;
+    const invDet = data.investment_details;
+    const mortDet = data.mortgage_details;
+    const nwBreak = data.net_worth_breakdown;
+    const cmpDet = data.cmp_details;
+    
+    const totalIn = Object.values(inf).reduce((a, b) => a + b, 0);
+    const totalOut = Object.values(out).reduce((a, b) => a + b, 0);
+    
+    document.getElementById('statsRow').innerHTML = `
+        <div class="stat-card">
+            <div class="stat-label">Total Inflow</div>
+            <div class="stat-value positive">${fmt(totalIn)}</div>
+            <div class="stat-tooltip">
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">H Salary</span><span class="stat-tooltip-value">${fmt(inf.h_salary_net)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">W Salary</span><span class="stat-tooltip-value">${fmt(inf.w_salary_net)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">H RSU</span><span class="stat-tooltip-value">${fmt(inf.h_rsu_net)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">W RSU</span><span class="stat-tooltip-value">${fmt(inf.w_rsu_net)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">YouTube</span><span class="stat-tooltip-value">${fmt(inf.yt_net)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">OWNSAP (Sold)</span><span class="stat-tooltip-value">${fmt(inf.ownsap_to_cmp)}</span></div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Outflow</div>
+            <div class="stat-value">${fmt(totalOut)}</div>
+            <div class="stat-tooltip">
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Mortgage</span><span class="stat-tooltip-value">${fmt(out.mortgage_payment)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Sondertilgung</span><span class="stat-tooltip-value">${fmt(out.sondertilgung)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">High-APR Debt</span><span class="stat-tooltip-value">${fmt(out.high_apr_payment)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Fixed Loans</span><span class="stat-tooltip-value">${fmt(out.fixed_debt_payment)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">SAP Loan</span><span class="stat-tooltip-value">${fmt(out.sap_loan_payment)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Expenses</span><span class="stat-tooltip-value">${fmt(out.expenses)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">To Investment</span><span class="stat-tooltip-value">${fmt(out.inv_ownsap + out.inv_excess)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">To Cashpile</span><span class="stat-tooltip-value">${fmt(out.cash_add)}</span></div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">CMP Balance</div>
+            <div class="stat-value">${fmt(bal.cmp)}</div>
+            <div class="stat-tooltip">
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Carry Forward</span><span class="stat-tooltip-value">${fmt(cmpDet.carry)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Inflow</span><span class="stat-tooltip-value">${fmt(cmpDet.inflow)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Outflow</span><span class="stat-tooltip-value">${fmt(cmpDet.outflow)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">End Balance</span><span class="stat-tooltip-value">${fmt(cmpDet.end)}</span></div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Current Investment Value</div>
+            <div class="stat-value positive">${fmt(bal.investment)}</div>
+            <div class="stat-tooltip">
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Start Value</span><span class="stat-tooltip-value">${fmt(invDet.begin)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">OWNSAP Contrib</span><span class="stat-tooltip-value">${fmt(invDet.ownsap_contrib)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Excess Contrib</span><span class="stat-tooltip-value">${fmt(invDet.excess_contrib)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Growth</span><span class="stat-tooltip-value">${fmt(invDet.growth)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">End Value</span><span class="stat-tooltip-value">${fmt(invDet.end)}</span></div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Mortgage Left to Pay</div>
+            <div class="stat-value ${bal.mortgage > 0 ? 'negative' : 'positive'}">${fmt(bal.mortgage)}</div>
+            <div class="stat-tooltip">
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Original Balance</span><span class="stat-tooltip-value">${fmt(396554)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Total Paid</span><span class="stat-tooltip-value">${fmt(mortDet.total_paid)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Interest Rate</span><span class="stat-tooltip-value">${mortDet.interest_rate}%</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Months Remaining</span><span class="stat-tooltip-value">~${mortDet.months_remaining}</span></div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Net Worth</div>
+            <div class="stat-value positive">${fmt(bal.net_worth)}</div>
+            <div class="stat-tooltip">
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Investment</span><span class="stat-tooltip-value">${fmt(nwBreak.investment)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">House Value</span><span class="stat-tooltip-value">${fmt(nwBreak.house)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Mortgage</span><span class="stat-tooltip-value">${fmt(nwBreak.mortgage)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Other Debt</span><span class="stat-tooltip-value">${fmt(nwBreak.other_debt)}</span></div>
+                <div class="stat-tooltip-row"><span class="stat-tooltip-label">Time Account</span><span class="stat-tooltip-value">${fmt(nwBreak.time_account)}</span></div>
+            </div>
+        </div>
+    `;
+}
+
+function renderSankey(data) {
+    const nodes = [];
+    const links = [];
+    const nodeMap = {};
+    
+    function addNode(name, color) {
+        if (!nodeMap[name]) {
+            nodeMap[name] = nodes.length;
+            nodes.push({ name, color, data: {} });
+        }
+        return nodeMap[name];
+    }
+    
+    const inf = data.inflows;
+    const out = data.outflows;
+    const gross = data.gross;
+    const ded = data.deductions;
+    const debtDet = data.debt_details;
+    const invDet = data.investment_details;
+    
+    if (viewMode === 'detailed') {
+        // DETAILED VIEW: Gross → Deductions → Net → CMP → Outflows
+        
+        // Gross income nodes
+        if (gross.h_salary > 0) {
+            const grossIdx = addNode('H Gross Salary', colors.h_gross);
+            nodes[grossIdx].data = { gross: gross.h_salary, ta: ded.h_ta, ownsap: ded.h_ownsap, tax: ded.h_tax, net: inf.h_salary_net };
+            
+            // Deductions
+            if (ded.h_ta > 0) {
+                const taIdx = addNode('Time Account', colors.ta_deduction);
+                links.push({ source: grossIdx, target: taIdx, value: ded.h_ta, color: colors.ta_deduction });
+            }
+            if (ded.h_ownsap > 0) {
+                const ownsapIdx = addNode('OWNSAP Deduction', colors.ownsap_ded);
+                links.push({ source: grossIdx, target: ownsapIdx, value: ded.h_ownsap, color: colors.ownsap_ded });
+            }
+            if (ded.h_tax > 0) {
+                const taxIdx = addNode('Tax & Social', colors.tax);
+                links.push({ source: grossIdx, target: taxIdx, value: ded.h_tax, color: colors.tax });
+            }
+            
+            // Net to CMP
+            if (inf.h_salary_net > 0) {
+                const netIdx = addNode('H Net Salary', colors.h_salary);
+                const cmpIdx = addNode('CMP', colors.cmp);
+                links.push({ source: grossIdx, target: netIdx, value: inf.h_salary_net, color: colors.h_salary });
+                links.push({ source: netIdx, target: cmpIdx, value: inf.h_salary_net, color: colors.h_salary });
+            }
+        }
+        
+        if (gross.w_salary > 0) {
+            const grossIdx = addNode('W Gross Salary', colors.w_gross);
+            nodes[grossIdx].data = { gross: gross.w_salary, ta: ded.w_ta, ownsap: ded.w_ownsap, tax: ded.w_tax, net: inf.w_salary_net };
+            
+            if (ded.w_ta > 0) {
+                const taIdx = nodeMap['Time Account'] ?? addNode('Time Account', colors.ta_deduction);
+                links.push({ source: grossIdx, target: taIdx, value: ded.w_ta, color: colors.ta_deduction });
+            }
+            if (ded.w_ownsap > 0) {
+                const ownsapIdx = nodeMap['OWNSAP Deduction'] ?? addNode('OWNSAP Deduction', colors.ownsap_ded);
+                links.push({ source: grossIdx, target: ownsapIdx, value: ded.w_ownsap, color: colors.ownsap_ded });
+            }
+            if (ded.w_tax > 0) {
+                const taxIdx = nodeMap['Tax & Social'] ?? addNode('Tax & Social', colors.tax);
+                links.push({ source: grossIdx, target: taxIdx, value: ded.w_tax, color: colors.tax });
+            }
+            
+            if (inf.w_salary_net > 0) {
+                const netIdx = addNode('W Net Salary', colors.w_salary);
+                const cmpIdx = nodeMap['CMP'] ?? addNode('CMP', colors.cmp);
+                links.push({ source: grossIdx, target: netIdx, value: inf.w_salary_net, color: colors.w_salary });
+                links.push({ source: netIdx, target: cmpIdx, value: inf.w_salary_net, color: colors.w_salary });
+            }
+        }
+        
+        // YouTube with tax
+        if (gross.yt > 0) {
+            const ytGrossIdx = addNode('YouTube Gross', colors.youtube);
+            if (ded.yt_tax_reserve > 0) {
+                const taxIdx = nodeMap['Tax & Social'] ?? addNode('Tax & Social', colors.tax);
+                links.push({ source: ytGrossIdx, target: taxIdx, value: ded.yt_tax_reserve, color: colors.tax });
+            }
+            if (inf.yt_net > 0) {
+                const cmpIdx = nodeMap['CMP'] ?? addNode('CMP', colors.cmp);
+                links.push({ source: ytGrossIdx, target: cmpIdx, value: inf.yt_net, color: colors.youtube });
+            }
+        }
+        
+        // RSU and OWNSAP direct to CMP
+        const cmpIdx = nodeMap['CMP'] ?? addNode('CMP', colors.cmp);
+        if (inf.h_rsu_net > 0) {
+            const idx = addNode('H RSU', colors.h_rsu);
+            links.push({ source: idx, target: cmpIdx, value: inf.h_rsu_net, color: colors.h_rsu });
+        }
+        if (inf.w_rsu_net > 0) {
+            const idx = addNode('W RSU', colors.w_rsu);
+            links.push({ source: idx, target: cmpIdx, value: inf.w_rsu_net, color: colors.w_rsu });
+        }
+        if (inf.ownsap_to_cmp > 0) {
+            const idx = addNode('OWNSAP (Sold)', colors.ownsap_sell);
+            links.push({ source: idx, target: cmpIdx, value: inf.ownsap_to_cmp, color: colors.ownsap_sell });
+        }
+        
+    } else {
+        // SIMPLE VIEW: Net income → CMP → Outflows
+        const cmpIdx = addNode('CMP', colors.cmp);
+        
+        if (inf.h_salary_net > 0) {
+            const idx = addNode('H Salary', colors.h_salary);
+            nodes[idx].data = { net: inf.h_salary_net };
+            links.push({ source: idx, target: cmpIdx, value: inf.h_salary_net, color: colors.h_salary });
+        }
+        if (inf.w_salary_net > 0) {
+            const idx = addNode('W Salary', colors.w_salary);
+            nodes[idx].data = { net: inf.w_salary_net };
+            links.push({ source: idx, target: cmpIdx, value: inf.w_salary_net, color: colors.w_salary });
+        }
+        if (inf.h_rsu_net > 0) {
+            const idx = addNode('H RSU', colors.h_rsu);
+            links.push({ source: idx, target: cmpIdx, value: inf.h_rsu_net, color: colors.h_rsu });
+        }
+        if (inf.w_rsu_net > 0) {
+            const idx = addNode('W RSU', colors.w_rsu);
+            links.push({ source: idx, target: cmpIdx, value: inf.w_rsu_net, color: colors.w_rsu });
+        }
+        if (inf.yt_net > 0) {
+            const idx = addNode('YouTube', colors.youtube);
+            links.push({ source: idx, target: cmpIdx, value: inf.yt_net, color: colors.youtube });
+        }
+        if (inf.ownsap_to_cmp > 0) {
+            const idx = addNode('OWNSAP (Sold)', colors.ownsap_sell);
+            links.push({ source: idx, target: cmpIdx, value: inf.ownsap_to_cmp, color: colors.ownsap_sell });
+        }
+    }
+    
+    // OUTFLOWS (same for both views)
+    const cmpIdx = nodeMap['CMP'] ?? addNode('CMP', colors.cmp);
+    
+    if (out.mortgage_payment > 0) {
+        const idx = addNode('Mortgage', colors.mortgage);
+        nodes[idx].data = { 
+            payment: out.mortgage_payment, 
+            principal: out.mortgage_principal, 
+            interest: out.mortgage_interest 
+        };
+        links.push({ source: cmpIdx, target: idx, value: out.mortgage_payment, color: colors.mortgage });
+    }
+    if (out.sondertilgung > 0) {
+        const idx = addNode('Sondertilgung', colors.sondertilgung);
+        links.push({ source: cmpIdx, target: idx, value: out.sondertilgung, color: colors.sondertilgung });
+    }
+    if (out.high_apr_payment > 0) {
+        const idx = addNode('High-APR Debt', colors.high_apr);
+        nodes[idx].data = debtDet;
+        links.push({ source: cmpIdx, target: idx, value: out.high_apr_payment, color: colors.high_apr });
+    }
+    if (out.fixed_debt_payment > 0) {
+        const idx = addNode('Fixed Loans', colors.fixed_debt);
+        nodes[idx].data = debtDet;
+        links.push({ source: cmpIdx, target: idx, value: out.fixed_debt_payment, color: colors.fixed_debt });
+    }
+    if (out.sap_loan_payment > 0) {
+        const idx = addNode('SAP Loan', colors.sap_loan);
+        nodes[idx].data = { payment: out.sap_loan_payment, balance: debtDet.sap?.balance || 0 };
+        links.push({ source: cmpIdx, target: idx, value: out.sap_loan_payment, color: colors.sap_loan });
+    }
+    if (out.expenses > 0) {
+        const idx = addNode('Expenses', colors.expenses);
+        nodes[idx].data = { budget: out.expenses };
+        links.push({ source: cmpIdx, target: idx, value: out.expenses, color: colors.expenses });
+    }
+    
+    // Investment flows
+    if (out.inv_ownsap > 0) {
+        const invIdx = addNode('Investment', colors.investment);
+        const ownsapIdx = addNode('OWNSAP', colors.ownsap_inv);
+        nodes[invIdx].data = invDet;
+        links.push({ source: ownsapIdx, target: invIdx, value: out.inv_ownsap, color: colors.ownsap_inv });
+    }
+    if (out.inv_excess > 0) {
+        let invIdx = nodeMap['Investment'];
+        if (invIdx === undefined) {
+            invIdx = addNode('Investment', colors.investment);
+            nodes[invIdx].data = invDet;
+        }
+        links.push({ source: cmpIdx, target: invIdx, value: out.inv_excess, color: colors.investment });
+    }
+    if (out.cash_add > 0) {
+        const idx = addNode('Cashpile', colors.cashpile);
+        links.push({ source: cmpIdx, target: idx, value: out.cash_add, color: colors.cashpile });
+    }
+    
+    drawSankey(nodes, links);
+    updateLegend(nodes);
+}
+
+function drawSankey(nodes, links) {
+    const container = document.getElementById('sankey');
+    container.innerHTML = '';
+    
+    if (links.length === 0) {
+        container.innerHTML = '<div class="loading"><span>No flow data for this period</span></div>';
+        return;
+    }
+    
+    const width = container.clientWidth;
+    const height = Math.max(500, nodes.length * 50);
+    
+    const svg = d3.select('#sankey')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+    
+    const sankey = d3.sankey()
+        .nodeWidth(20)
+        .nodePadding(18)
+        .extent([[1, 1], [width - 1, height - 6]]);
+    
+    const graph = sankey({
+        nodes: nodes.map(d => ({ ...d })),
+        links: links.map(d => ({ ...d }))
+    });
+    
+    // Links
+    svg.append('g')
+        .selectAll('path')
+        .data(graph.links)
+        .join('path')
+        .attr('class', 'link')
+        .attr('d', d3.sankeyLinkHorizontal())
+        .attr('stroke', d => d.color)
+        .attr('stroke-width', d => Math.max(1, d.width))
+        .on('mouseover', showLinkTooltip)
+        .on('mousemove', moveTooltip)
+        .on('mouseout', hideTooltip);
+    
+    // Nodes
+    const node = svg.append('g')
+        .selectAll('g')
+        .data(graph.nodes)
+        .join('g')
+        .attr('class', 'node');
+    
+    node.append('rect')
+        .attr('x', d => d.x0)
+        .attr('y', d => d.y0)
+        .attr('height', d => d.y1 - d.y0)
+        .attr('width', d => d.x1 - d.x0)
+        .attr('fill', d => d.color)
+        .attr('rx', 3)
+        .on('mouseover', showNodeTooltip)
+        .on('mousemove', moveTooltip)
+        .on('mouseout', hideTooltip);
+    
+    node.append('text')
+        .attr('x', d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+        .attr('y', d => (d.y1 + d.y0) / 2)
+        .attr('dy', '0.35em')
+        .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+        .text(d => `${d.name}: ${fmt(d.value)}`);
+}
+
+// ============ TOOLTIPS ============
+
+function showLinkTooltip(event, d) {
+    const tooltip = document.getElementById('tooltip');
+    tooltip.innerHTML = `
+        <div class="tooltip-title">${d.source.name} → ${d.target.name}</div>
+        <div class="tooltip-row"><span class="tooltip-label">Amount</span><span class="tooltip-value">${fmt(d.value)}</span></div>
+    `;
+    tooltip.classList.add('visible');
+    moveTooltip(event);
+}
+
+function showNodeTooltip(event, d) {
+    const tooltip = document.getElementById('tooltip');
+    let html = `<div class="tooltip-title">${d.name}</div>`;
+    
+    const data = d.data || {};
+    
+    // Custom tooltips based on node type
+    if (d.name === 'High-APR Debt' && data.tf) {
+        html += `
+            <div class="tooltip-row"><span class="tooltip-label">TF Card</span><span class="tooltip-value">${fmt(data.tf.payment)} (bal: ${fmt(data.tf.balance)})</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Klarna</span><span class="tooltip-value">${fmt(data.klarna.payment)} (bal: ${fmt(data.klarna.balance)})</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Nordea</span><span class="tooltip-value">${fmt(data.nordea.payment)} (bal: ${fmt(data.nordea.balance)})</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">DB Overdraft</span><span class="tooltip-value">${fmt(data.db.payment)} (bal: ${fmt(data.db.balance)})</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Aktia</span><span class="tooltip-value">${fmt(data.aktia.payment)} (bal: ${fmt(data.aktia.balance)})</span></div>
+        `;
+    } else if (d.name === 'Fixed Loans' && data.revolut) {
+        html += `
+            <div class="tooltip-row"><span class="tooltip-label">Revolut</span><span class="tooltip-value">${fmt(data.revolut.payment)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">C3 Family</span><span class="tooltip-value">${fmt(data.c3.payment)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Student</span><span class="tooltip-value">${fmt(data.student.payment)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">IKEA</span><span class="tooltip-value">${fmt(data.ikea.payment)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">N26</span><span class="tooltip-value">${fmt(data.n26.payment)}</span></div>
+        `;
+    } else if (d.name === 'Mortgage' && data.payment) {
+        html += `
+            <div class="tooltip-row"><span class="tooltip-label">Payment</span><span class="tooltip-value">${fmt(data.payment)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Principal</span><span class="tooltip-value">${fmt(data.principal)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Interest</span><span class="tooltip-value">${fmt(data.interest)}</span></div>
+        `;
+    } else if (d.name === 'Investment' && data.begin !== undefined) {
+        html += `
+            <div class="tooltip-row"><span class="tooltip-label">Start</span><span class="tooltip-value">${fmt(data.begin)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">OWNSAP</span><span class="tooltip-value">${fmt(data.ownsap_contrib)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Excess</span><span class="tooltip-value">${fmt(data.excess_contrib)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Growth</span><span class="tooltip-value">${fmt(data.growth)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">End</span><span class="tooltip-value">${fmt(data.end)}</span></div>
+        `;
+    } else if (d.name.includes('Gross') && data.gross) {
+        html += `
+            <div class="tooltip-row"><span class="tooltip-label">Gross</span><span class="tooltip-value">${fmt(data.gross)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Time Account</span><span class="tooltip-value">-${fmt(data.ta)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">OWNSAP</span><span class="tooltip-value">-${fmt(data.ownsap)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Tax & Social</span><span class="tooltip-value">-${fmt(data.tax)}</span></div>
+            <div class="tooltip-divider"></div>
+            <div class="tooltip-row"><span class="tooltip-label">Net</span><span class="tooltip-value">${fmt(data.net)}</span></div>
+        `;
+    } else if (d.name === 'SAP Loan' && data.balance !== undefined) {
+        html += `
+            <div class="tooltip-row"><span class="tooltip-label">Payment</span><span class="tooltip-value">${fmt(data.payment)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Balance</span><span class="tooltip-value">${fmt(data.balance)}</span></div>
+        `;
+    } else {
+        const inflow = d.targetLinks?.reduce((sum, l) => sum + l.value, 0) || 0;
+        const outflow = d.sourceLinks?.reduce((sum, l) => sum + l.value, 0) || 0;
+        if (inflow > 0) html += `<div class="tooltip-row"><span class="tooltip-label">Inflow</span><span class="tooltip-value">${fmt(inflow)}</span></div>`;
+        if (outflow > 0) html += `<div class="tooltip-row"><span class="tooltip-label">Outflow</span><span class="tooltip-value">${fmt(outflow)}</span></div>`;
+    }
+    
+    tooltip.innerHTML = html;
+    tooltip.classList.add('visible');
+    moveTooltip(event);
+}
+
+function moveTooltip(event) {
+    const tooltip = document.getElementById('tooltip');
+    const x = event.clientX + 15;
+    const y = event.clientY - 10;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+}
+
+function hideTooltip() {
+    document.getElementById('tooltip').classList.remove('visible');
+}
+
+function updateLegend(nodes) {
+    document.getElementById('legend').innerHTML = nodes.map(n => `
+        <div class="legend-item">
+            <div class="legend-color" style="background: ${n.color}"></div>
+            <span>${n.name}</span>
+        </div>
+    `).join('');
+}
+
+// Start
+init();
+</script>
+</body>
+</html>
