@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial Flow Dashboard v2 | Live from Google Sheets</title>
+    <title>Financial Flow Dashboard v3 | Live from Google Sheets</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-sankey/0.12.3/d3-sankey.min.js"></script>
     <style>
@@ -233,6 +233,7 @@
         .tooltip-label { color: var(--text-secondary); }
         .tooltip-value { color: var(--accent-green); font-weight: 500; }
         .tooltip-divider { border-top: 1px solid var(--border); margin: 8px 0; }
+        .tooltip-hint { font-size: 11px; color: var(--text-muted); margin-top: 8px; font-style: italic; }
         
         .legend {
             display: flex;
@@ -308,14 +309,168 @@
             background: var(--accent-blue);
             color: white;
         }
+        
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        .modal-overlay.active { display: flex; }
+        
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-title { font-size: 18px; font-weight: 600; }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+        .modal-close:hover { color: var(--text-primary); }
+        
+        /* Budget Bar Styles */
+        .budget-item {
+            margin-bottom: 16px;
+        }
+        .budget-item-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+        .budget-item-name { color: var(--text-primary); }
+        .budget-item-values { color: var(--text-secondary); }
+        .budget-bar {
+            height: 8px;
+            background: var(--bg-primary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .budget-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        .budget-bar-fill.green { background: var(--accent-green); }
+        .budget-bar-fill.yellow { background: var(--accent-yellow); }
+        .budget-bar-fill.orange { background: var(--accent-orange); }
+        .budget-bar-fill.red { background: var(--accent-red); }
+        
+        .budget-summary {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            margin-top: 16px;
+            font-weight: 600;
+        }
+        
+        .budget-na {
+            color: var(--text-muted);
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        /* Debt Detail Styles */
+        .debt-section {
+            margin-bottom: 20px;
+        }
+        .debt-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .debt-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: var(--bg-card);
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+        .debt-item-name { color: var(--text-primary); }
+        .debt-item-values { 
+            display: flex;
+            gap: 20px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+        .debt-item-values span { min-width: 80px; text-align: right; }
+        .debt-item-values .payment { color: var(--accent-orange); }
+        .debt-item-values .balance { color: var(--text-muted); }
+        
+        /* CMP Flow Indicator */
+        .cmp-flow-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .cmp-flow-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--accent-blue);
+        }
+        .cmp-flow-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed var(--border);
+        }
+        .cmp-flow-row:last-child { border-bottom: none; }
+        .cmp-flow-row.highlight { 
+            background: rgba(59, 130, 246, 0.1);
+            margin: 0 -8px;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        .cmp-flow-label { color: var(--text-secondary); }
+        .cmp-flow-value { font-weight: 600; }
+        .cmp-flow-value.inflow { color: var(--accent-green); }
+        .cmp-flow-value.outflow { color: var(--accent-red); }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>💰 Financial Flow <span>Dashboard v2</span></h1>
+            <h1>💰 Financial Flow <span>Dashboard v3</span></h1>
             <div class="control-group">
-                <a href="https://docs.google.com/spreadsheets/d/1rTVkCLy0yqq1sByvBuM-ENWM_3ctK0V1/edit" 
+                <a href="https://docs.google.com/spreadsheets/d/1mrMCTbgPxjxbkHepDiQk_ddN0cbJ-A-GWWtwt3wOgSU/edit" 
                    target="_blank" class="sheet-link">📊 Open Google Sheet</a>
                 <button onclick="refreshData()" class="primary">⟳ Refresh</button>
             </div>
@@ -352,68 +507,87 @@
             </div>
             <div class="control-group">
                 <label>Year:</label>
-                <select id="yearSelect" onchange="updateMonthOptions(); render()"></select>
+                <select id="yearSelect" onchange="updateMonthOptions(); render();"></select>
             </div>
             <div class="control-group">
                 <label>From:</label>
-                <select id="monthFromSelect" onchange="validateMonthRange(); render()"></select>
+                <select id="monthFromSelect" onchange="validateMonthRange(); render();"></select>
             </div>
             <div class="control-group">
                 <label>To:</label>
-                <select id="monthToSelect" onchange="validateMonthRange(); render()"></select>
+                <select id="monthToSelect" onchange="validateMonthRange(); render();"></select>
             </div>
-            <div id="monthBadges" style="display: flex; gap: 8px; align-items: center;"></div>
         </div>
         
-        <div class="stats-row" id="statsRow"></div>
+        <!-- CMP Flow Section (for single month view) -->
+        <div class="cmp-flow-section hidden" id="cmpFlowSection">
+            <div class="cmp-flow-title">💳 Central Master Pot (CMP) Flow</div>
+            <div id="cmpFlowContent"></div>
+        </div>
+        
+        <div id="statsRow" class="stats-row"></div>
         
         <div class="sankey-container">
             <div class="sankey-title">
                 <span>💸 Money Flow</span>
-                <span id="flowTitle" style="font-weight: normal; color: var(--text-secondary);"></span>
+                <span id="flowTitle"></span>
+                <span id="monthBadges"></span>
             </div>
-            <div id="sankey">
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <span>Connect to Google Sheets to see your data</span>
-                </div>
-            </div>
+            <div id="sankey"></div>
             <div class="legend" id="legend"></div>
         </div>
     </div>
     
-    <div class="tooltip" id="tooltip"></div>
+    <div id="tooltip" class="tooltip"></div>
+    
+    <!-- Expense Modal -->
+    <div class="modal-overlay" id="expenseModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title">📊 Expense Breakdown</span>
+                <button class="modal-close" onclick="closeModal('expenseModal')">&times;</button>
+            </div>
+            <div id="expenseModalContent">
+                <div class="loading"><div class="spinner"></div><span>Loading expense data...</span></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Debt Modal -->
+    <div class="modal-overlay" id="debtModal">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="debtModalTitle">💳 Debt Breakdown</span>
+                <button class="modal-close" onclick="closeModal('debtModal')">&times;</button>
+            </div>
+            <div id="debtModalContent"></div>
+        </div>
+    </div>
 
 <script>
 // ============ CONFIGURATION ============
 let API_URL = localStorage.getItem('sankey_api_url') || '';
-let viewMode = 'simple'; // 'simple' or 'detailed'
+let viewMode = 'simple';
 
 const colors = {
-    // Gross (for detailed view)
-    h_gross: '#166534',
-    w_gross: '#15803d',
-    
-    // Deductions
-    tax: '#dc2626',
-    ta_deduction: '#9333ea',
+    h_gross: '#16a34a',
+    w_gross: '#059669',
+    tax: '#ef4444',
+    ta_deduction: '#0ea5e9',
     ownsap_ded: '#c2410c',
-    
-    // Net income
     h_salary: '#22c55e',
     w_salary: '#10b981',
     h_rsu: '#a855f7',
     w_rsu: '#c084fc',
     youtube: '#ef4444',
     ownsap_sell: '#f97316',
-    
-    // Hub
     cmp: '#3b82f6',
-    
-    // Outflows
+    cmp_carry: '#60a5fa',
+    cmp_next: '#93c5fd',
     mortgage: '#64748b',
     sondertilgung: '#dc2626',
     high_apr: '#f43f5e',
+    low_apr: '#fb7185',
     fixed_debt: '#fb923c',
     sap_loan: '#94a3b8',
     expenses: '#8b5cf6',
@@ -426,8 +600,11 @@ let allData = [];
 let currentYear = 2026;
 let monthFrom = 1;
 let monthTo = 1;
+let expenseCache = {}; // Cache expense data by month
 
 // ============ INITIALIZATION ============
+
+document.addEventListener('DOMContentLoaded', init);
 
 function init() {
     if (API_URL) {
@@ -437,6 +614,22 @@ function init() {
         document.getElementById('setupBanner').classList.remove('hidden');
         document.getElementById('controls').classList.add('hidden');
     }
+    
+    // Close modals on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.classList.remove('active');
+            }
+        });
+    });
+    
+    // Close modals on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+        }
+    });
 }
 
 function saveApiUrl() {
@@ -475,10 +668,12 @@ async function refreshData() {
     document.getElementById('sankey').innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading live data...</span></div>';
     
     try {
-        const res = await fetch(API_URL);
+        // Use ?action=dashboard for the API call
+        const apiUrlWithAction = API_URL.includes('?') ? `${API_URL}&action=dashboard` : `${API_URL}?action=dashboard`;
+        const res = await fetch(apiUrlWithAction);
         const json = await res.json();
         
-        if (json.success) {
+        if (json.success && json.data) {
             allData = json.data;
             statusDot.className = 'status-dot connected';
             statusText.textContent = `Live • ${json.count} months loaded`;
@@ -493,6 +688,30 @@ async function refreshData() {
         statusDot.className = 'status-dot error';
         statusText.textContent = `Error: ${err.message}`;
         document.getElementById('sankey').innerHTML = `<div class="error">${err.message}</div>`;
+    }
+}
+
+async function fetchExpenseData(month) {
+    // Check cache first
+    if (expenseCache[month]) {
+        return expenseCache[month];
+    }
+    
+    try {
+        const apiUrlWithAction = API_URL.includes('?') 
+            ? `${API_URL}&action=expenses&month=${month}` 
+            : `${API_URL}?action=expenses&month=${month}`;
+        const res = await fetch(apiUrlWithAction);
+        const json = await res.json();
+        
+        if (json.success) {
+            expenseCache[month] = json;
+            return json;
+        } else {
+            return { success: false, error: json.error || 'Failed to load expense data' };
+        }
+    } catch (err) {
+        return { success: false, error: err.message };
     }
 }
 
@@ -558,13 +777,20 @@ function getSelectedData() {
     );
 }
 
+function isSingleMonthView() {
+    return monthFrom === monthTo;
+}
+
+function getMonthKey(year, month) {
+    return `${year}-${String(month).padStart(2, '0')}`;
+}
+
 function aggregateData(dataArr) {
     if (dataArr.length === 0) return null;
     if (dataArr.length === 1) return dataArr[0];
     
     const agg = JSON.parse(JSON.stringify(dataArr[0]));
     
-    // Sum numeric fields
     const sumFields = (obj, source) => {
         for (const key in obj) {
             if (typeof obj[key] === 'number') {
@@ -578,7 +804,6 @@ function aggregateData(dataArr) {
     sumFields(agg.inflows, 'inflows');
     sumFields(agg.outflows, 'outflows');
     
-    // Use last month's balances
     const last = dataArr[dataArr.length - 1];
     agg.balances = last.balances;
     agg.investment_details = last.investment_details;
@@ -587,20 +812,30 @@ function aggregateData(dataArr) {
     agg.debt_details = last.debt_details;
     agg.cmp_details = last.cmp_details;
     
-    // Aggregate investment contributions
     agg.investment_details.ownsap_contrib = dataArr.reduce((s, d) => s + d.investment_details.ownsap_contrib, 0);
     agg.investment_details.excess_contrib = dataArr.reduce((s, d) => s + d.investment_details.excess_contrib, 0);
     agg.investment_details.growth = dataArr.reduce((s, d) => s + d.investment_details.growth, 0);
     agg.investment_details.begin = dataArr[0].investment_details.begin;
     
-    // Flags: true if any month has it
     agg.is_bonus_month = dataArr.some(d => d.is_bonus_month);
     agg.is_rsu_month = dataArr.some(d => d.is_rsu_month);
     agg.is_sondertilgung_month = dataArr.some(d => d.is_sondertilgung_month);
     agg.is_post_mortgage = dataArr.every(d => d.is_post_mortgage);
     agg.is_debt_attack_phase = dataArr.some(d => d.is_debt_attack_phase);
     
+    // For multi-month, use first month's carry and last month's end for CMP flow
+    agg.cmp_details.carry = dataArr[0].cmp_details.carry;
+    agg.cmp_details.end = last.cmp_details.end;
+    
     return agg;
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+}
+
+function openModal(modalId) {
+    document.getElementById(modalId).classList.add('active');
 }
 
 // ============ RENDERING ============
@@ -613,7 +848,6 @@ function render() {
     const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 
                         'July', 'August', 'September', 'October', 'November', 'December'];
     
-    // Title
     let title = '';
     if (monthFrom === monthTo) {
         title = `${monthNames[monthFrom]} ${currentYear}`;
@@ -622,7 +856,6 @@ function render() {
     }
     document.getElementById('flowTitle').textContent = title;
     
-    // Badges
     let badges = [];
     if (data.is_debt_attack_phase) badges.push('<span class="badge debt-attack">Debt Attack</span>');
     if (data.is_bonus_month) badges.push('<span class="badge bonus">Bonus</span>');
@@ -632,8 +865,65 @@ function render() {
     if (badges.length === 0) badges.push('<span class="badge lean">Standard</span>');
     document.getElementById('monthBadges').innerHTML = badges.join('');
     
+    // Show/hide CMP flow section based on single month view
+    renderCMPFlowSection(data, dataArr);
+    
     renderStats(data);
-    renderSankey(data);
+    renderSankey(data, dataArr);
+}
+
+function renderCMPFlowSection(data, dataArr) {
+    const section = document.getElementById('cmpFlowSection');
+    const content = document.getElementById('cmpFlowContent');
+    
+    if (!isSingleMonthView()) {
+        section.classList.add('hidden');
+        return;
+    }
+    
+    section.classList.remove('hidden');
+    
+    const cmpDet = data.cmp_details;
+    const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    // Calculate next month name
+    let nextMonth = monthFrom + 1;
+    let nextYear = currentYear;
+    if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear++;
+    }
+    const nextMonthName = `${monthNames[nextMonth]} ${nextYear}`;
+    const currentMonthName = `${monthNames[monthFrom]} ${currentYear}`;
+    
+    // Previous month name
+    let prevMonth = monthFrom - 1;
+    let prevYear = currentYear;
+    if (prevMonth < 1) {
+        prevMonth = 12;
+        prevYear--;
+    }
+    const prevMonthName = `${monthNames[prevMonth]} ${prevYear}`;
+    
+    content.innerHTML = `
+        <div class="cmp-flow-row">
+            <span class="cmp-flow-label">📥 Carry from ${prevMonthName}</span>
+            <span class="cmp-flow-value inflow">${fmt(cmpDet.carry)}</span>
+        </div>
+        <div class="cmp-flow-row">
+            <span class="cmp-flow-label">💰 ${currentMonthName} Income</span>
+            <span class="cmp-flow-value inflow">+${fmt(cmpDet.inflow)}</span>
+        </div>
+        <div class="cmp-flow-row">
+            <span class="cmp-flow-label">💸 ${currentMonthName} Outflows</span>
+            <span class="cmp-flow-value outflow">-${fmt(cmpDet.outflow)}</span>
+        </div>
+        <div class="cmp-flow-row highlight">
+            <span class="cmp-flow-label">📤 Flowing to ${nextMonthName}</span>
+            <span class="cmp-flow-value" style="color: var(--accent-blue);">${fmt(cmpDet.end)}</span>
+        </div>
+    `;
 }
 
 function renderStats(data) {
@@ -659,6 +949,7 @@ function renderStats(data) {
                 <div class="stat-tooltip-row"><span class="stat-tooltip-label">W RSU</span><span class="stat-tooltip-value">${fmt(inf.w_rsu_net)}</span></div>
                 <div class="stat-tooltip-row"><span class="stat-tooltip-label">YouTube</span><span class="stat-tooltip-value">${fmt(inf.yt_net)}</span></div>
                 <div class="stat-tooltip-row"><span class="stat-tooltip-label">OWNSAP (Sold)</span><span class="stat-tooltip-value">${fmt(inf.ownsap_to_cmp)}</span></div>
+                ${inf.other_fam_net ? `<div class="stat-tooltip-row"><span class="stat-tooltip-label">Other Family</span><span class="stat-tooltip-value">${fmt(inf.other_fam_net)}</span></div>` : ''}
             </div>
         </div>
         <div class="stat-card">
@@ -668,6 +959,7 @@ function renderStats(data) {
                 <div class="stat-tooltip-row"><span class="stat-tooltip-label">Mortgage</span><span class="stat-tooltip-value">${fmt(out.mortgage_payment)}</span></div>
                 <div class="stat-tooltip-row"><span class="stat-tooltip-label">Sondertilgung</span><span class="stat-tooltip-value">${fmt(out.sondertilgung)}</span></div>
                 <div class="stat-tooltip-row"><span class="stat-tooltip-label">High-APR Debt</span><span class="stat-tooltip-value">${fmt(out.high_apr_payment)}</span></div>
+                ${out.low_apr_payment ? `<div class="stat-tooltip-row"><span class="stat-tooltip-label">Low-APR Debt</span><span class="stat-tooltip-value">${fmt(out.low_apr_payment)}</span></div>` : ''}
                 <div class="stat-tooltip-row"><span class="stat-tooltip-label">Fixed Loans</span><span class="stat-tooltip-value">${fmt(out.fixed_debt_payment)}</span></div>
                 <div class="stat-tooltip-row"><span class="stat-tooltip-label">SAP Loan</span><span class="stat-tooltip-value">${fmt(out.sap_loan_payment)}</span></div>
                 <div class="stat-tooltip-row"><span class="stat-tooltip-label">Expenses</span><span class="stat-tooltip-value">${fmt(out.expenses)}</span></div>
@@ -720,15 +1012,15 @@ function renderStats(data) {
     `;
 }
 
-function renderSankey(data) {
+function renderSankey(data, dataArr) {
     const nodes = [];
     const links = [];
     const nodeMap = {};
     
-    function addNode(name, color) {
-        if (!nodeMap[name]) {
+    function addNode(name, color, clickable = false, clickHandler = null) {
+        if (!nodeMap.hasOwnProperty(name)) {
             nodeMap[name] = nodes.length;
-            nodes.push({ name, color, data: {} });
+            nodes.push({ name, color, data: {}, clickable, clickHandler });
         }
         return nodeMap[name];
     }
@@ -739,16 +1031,18 @@ function renderSankey(data) {
     const ded = data.deductions;
     const debtDet = data.debt_details;
     const invDet = data.investment_details;
+    const cmpDet = data.cmp_details;
+    
+    // For single month, add CMP carry forward as an inflow
+    const showCMPCarry = isSingleMonthView() && cmpDet.carry > 0;
     
     if (viewMode === 'detailed') {
         // DETAILED VIEW: Gross → Deductions → Net → CMP → Outflows
         
-        // Gross income nodes
         if (gross.h_salary > 0) {
             const grossIdx = addNode('H Gross Salary', colors.h_gross);
             nodes[grossIdx].data = { gross: gross.h_salary, ta: ded.h_ta, ownsap: ded.h_ownsap, tax: ded.h_tax, net: inf.h_salary_net };
             
-            // Deductions
             if (ded.h_ta > 0) {
                 const taIdx = addNode('Time Account', colors.ta_deduction);
                 links.push({ source: grossIdx, target: taIdx, value: ded.h_ta, color: colors.ta_deduction });
@@ -762,7 +1056,6 @@ function renderSankey(data) {
                 links.push({ source: grossIdx, target: taxIdx, value: ded.h_tax, color: colors.tax });
             }
             
-            // Net to CMP
             if (inf.h_salary_net > 0) {
                 const netIdx = addNode('H Net Salary', colors.h_salary);
                 const cmpIdx = addNode('CMP', colors.cmp);
@@ -796,9 +1089,10 @@ function renderSankey(data) {
             }
         }
         
-        // YouTube with tax
         if (gross.yt > 0) {
             const ytGrossIdx = addNode('YouTube Gross', colors.youtube);
+            nodes[ytGrossIdx].data = { gross: gross.yt, tax: ded.yt_tax_reserve, net: inf.yt_net };
+            
             if (ded.yt_tax_reserve > 0) {
                 const taxIdx = nodeMap['Tax & Social'] ?? addNode('Tax & Social', colors.tax);
                 links.push({ source: ytGrossIdx, target: taxIdx, value: ded.yt_tax_reserve, color: colors.tax });
@@ -809,7 +1103,6 @@ function renderSankey(data) {
             }
         }
         
-        // RSU and OWNSAP direct to CMP
         const cmpIdx = nodeMap['CMP'] ?? addNode('CMP', colors.cmp);
         if (inf.h_rsu_net > 0) {
             const idx = addNode('H RSU', colors.h_rsu);
@@ -827,6 +1120,12 @@ function renderSankey(data) {
     } else {
         // SIMPLE VIEW: Net income → CMP → Outflows
         const cmpIdx = addNode('CMP', colors.cmp);
+        
+        // Add CMP carry forward for single month view
+        if (showCMPCarry) {
+            const carryIdx = addNode('Prev Month CMP', colors.cmp_carry);
+            links.push({ source: carryIdx, target: cmpIdx, value: cmpDet.carry, color: colors.cmp_carry });
+        }
         
         if (inf.h_salary_net > 0) {
             const idx = addNode('H Salary', colors.h_salary);
@@ -854,6 +1153,10 @@ function renderSankey(data) {
             const idx = addNode('OWNSAP (Sold)', colors.ownsap_sell);
             links.push({ source: idx, target: cmpIdx, value: inf.ownsap_to_cmp, color: colors.ownsap_sell });
         }
+        if (inf.other_fam_net && inf.other_fam_net > 0) {
+            const idx = addNode('Other Family', colors.ownsap_sell);
+            links.push({ source: idx, target: cmpIdx, value: inf.other_fam_net, color: colors.ownsap_sell });
+        }
     }
     
     // OUTFLOWS (same for both views)
@@ -873,22 +1176,27 @@ function renderSankey(data) {
         links.push({ source: cmpIdx, target: idx, value: out.sondertilgung, color: colors.sondertilgung });
     }
     if (out.high_apr_payment > 0) {
-        const idx = addNode('High-APR Debt', colors.high_apr);
+        const idx = addNode('High-APR Debt', colors.high_apr, true, () => showDebtModal('high-apr', debtDet));
         nodes[idx].data = debtDet;
         links.push({ source: cmpIdx, target: idx, value: out.high_apr_payment, color: colors.high_apr });
     }
+    if (out.low_apr_payment && out.low_apr_payment > 0) {
+        const idx = addNode('Low-APR Debt', colors.low_apr, true, () => showDebtModal('low-apr', debtDet));
+        nodes[idx].data = debtDet;
+        links.push({ source: cmpIdx, target: idx, value: out.low_apr_payment, color: colors.low_apr });
+    }
     if (out.fixed_debt_payment > 0) {
-        const idx = addNode('Fixed Loans', colors.fixed_debt);
+        const idx = addNode('Fixed Loans', colors.fixed_debt, true, () => showDebtModal('fixed', debtDet));
         nodes[idx].data = debtDet;
         links.push({ source: cmpIdx, target: idx, value: out.fixed_debt_payment, color: colors.fixed_debt });
     }
     if (out.sap_loan_payment > 0) {
-        const idx = addNode('SAP Loan', colors.sap_loan);
+        const idx = addNode('SAP Loan', colors.sap_loan, true, () => showDebtModal('sap', debtDet));
         nodes[idx].data = { payment: out.sap_loan_payment, balance: debtDet.sap?.balance || 0 };
         links.push({ source: cmpIdx, target: idx, value: out.sap_loan_payment, color: colors.sap_loan });
     }
     if (out.expenses > 0) {
-        const idx = addNode('Expenses', colors.expenses);
+        const idx = addNode('Expenses', colors.expenses, true, () => showExpenseModal());
         nodes[idx].data = { budget: out.expenses };
         links.push({ source: cmpIdx, target: idx, value: out.expenses, color: colors.expenses });
     }
@@ -911,6 +1219,12 @@ function renderSankey(data) {
     if (out.cash_add > 0) {
         const idx = addNode('Cashpile', colors.cashpile);
         links.push({ source: cmpIdx, target: idx, value: out.cash_add, color: colors.cashpile });
+    }
+    
+    // For single month view, add "Next Month CMP" as outflow
+    if (isSingleMonthView() && cmpDet.end > 0) {
+        const nextIdx = addNode('Next Month CMP', colors.cmp_next);
+        links.push({ source: cmpIdx, target: nextIdx, value: cmpDet.end, color: colors.cmp_next });
     }
     
     drawSankey(nodes, links);
@@ -971,9 +1285,15 @@ function drawSankey(nodes, links) {
         .attr('width', d => d.x1 - d.x0)
         .attr('fill', d => d.color)
         .attr('rx', 3)
+        .style('cursor', d => d.clickable ? 'pointer' : 'default')
         .on('mouseover', showNodeTooltip)
         .on('mousemove', moveTooltip)
-        .on('mouseout', hideTooltip);
+        .on('mouseout', hideTooltip)
+        .on('click', (event, d) => {
+            if (d.clickable && d.clickHandler) {
+                d.clickHandler();
+            }
+        });
     
     node.append('text')
         .attr('x', d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
@@ -981,6 +1301,246 @@ function drawSankey(nodes, links) {
         .attr('dy', '0.35em')
         .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
         .text(d => `${d.name}: ${fmt(d.value)}`);
+}
+
+// ============ MODALS ============
+
+async function showExpenseModal() {
+    openModal('expenseModal');
+    const content = document.getElementById('expenseModalContent');
+    content.innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading expense data from ShadowLedger...</span></div>';
+    
+    // Get month(s) to fetch
+    const months = [];
+    for (let m = monthFrom; m <= monthTo; m++) {
+        months.push(getMonthKey(currentYear, m));
+    }
+    
+    try {
+        // Fetch expense data for each month
+        const results = await Promise.all(months.map(m => fetchExpenseData(m)));
+        
+        // Aggregate if multi-month
+        let aggregated = aggregateExpenseData(results);
+        
+        renderExpenseModalContent(aggregated, months.length > 1);
+    } catch (err) {
+        content.innerHTML = `<div class="error">Failed to load expense data: ${err.message}</div>`;
+    }
+}
+
+function aggregateExpenseData(results) {
+    if (results.length === 0 || !results[0].success) {
+        return results[0] || { success: false, error: 'No data' };
+    }
+    
+    if (results.length === 1) return results[0];
+    
+    // Aggregate multiple months
+    const agg = {
+        success: true,
+        month: `${results[0].month} - ${results[results.length-1].month}`,
+        month_name: `${results[0].month_name} - ${results[results.length-1].month_name}`,
+        categories: [],
+        summary: {
+            total_spent: 0,
+            total_budget: 0,
+            transaction_count: 0,
+            budget_available: false
+        }
+    };
+    
+    const catMap = {};
+    
+    results.forEach(r => {
+        if (!r.success) return;
+        
+        r.categories.forEach(cat => {
+            if (!catMap[cat.name]) {
+                catMap[cat.name] = { name: cat.name, spent: 0, budget: 0, hasBudget: false };
+            }
+            catMap[cat.name].spent += cat.spent;
+            if (cat.budget !== null) {
+                catMap[cat.name].budget += cat.budget;
+                catMap[cat.name].hasBudget = true;
+            }
+        });
+        
+        agg.summary.total_spent += r.summary.total_spent;
+        if (r.summary.total_budget) {
+            agg.summary.total_budget += r.summary.total_budget;
+            agg.summary.budget_available = true;
+        }
+        agg.summary.transaction_count += r.summary.transaction_count;
+    });
+    
+    agg.categories = Object.values(catMap).map(cat => ({
+        name: cat.name,
+        spent: cat.spent,
+        budget: cat.hasBudget ? cat.budget : null,
+        percent: cat.hasBudget && cat.budget > 0 ? Math.round((cat.spent / cat.budget) * 100) : null,
+        status: cat.hasBudget && cat.budget > 0 ? getStatusEmoji(Math.round((cat.spent / cat.budget) * 100)) : 'N/A'
+    })).sort((a, b) => b.spent - a.spent);
+    
+    if (agg.summary.budget_available && agg.summary.total_budget > 0) {
+        agg.summary.total_percent = Math.round((agg.summary.total_spent / agg.summary.total_budget) * 100);
+    }
+    
+    return agg;
+}
+
+function getStatusEmoji(percent) {
+    if (percent >= 100) return '🔴';
+    if (percent >= 80) return '🟠';
+    if (percent >= 50) return '🟡';
+    return '🟢';
+}
+
+function getBarColor(percent) {
+    if (percent >= 100) return 'red';
+    if (percent >= 80) return 'orange';
+    if (percent >= 50) return 'yellow';
+    return 'green';
+}
+
+function renderExpenseModalContent(data, isMultiMonth) {
+    const content = document.getElementById('expenseModalContent');
+    
+    if (!data.success) {
+        content.innerHTML = `<div class="error">${data.error || 'Failed to load data'}</div>`;
+        return;
+    }
+    
+    if (!data.summary.budget_available) {
+        content.innerHTML = `
+            <div class="budget-na">
+                <p>📊 <strong>${data.month_name}</strong></p>
+                <p style="margin-top: 12px;">Budget data not available for this period.</p>
+                <p style="margin-top: 8px; font-size: 12px;">Total spent: ${fmt(data.summary.total_spent)} (${data.summary.transaction_count} transactions)</p>
+                <p style="margin-top: 16px; font-size: 12px;">To enable budget tracking, add rows for this month in the SL_Budget tab.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `<p style="margin-bottom: 16px; color: var(--text-secondary);">📅 ${data.month_name} • ${data.summary.transaction_count} transactions</p>`;
+    
+    data.categories.forEach(cat => {
+        if (cat.spent === 0 && (!cat.budget || cat.budget === 0)) return;
+        
+        const percent = cat.percent !== null ? cat.percent : 0;
+        const barWidth = Math.min(percent, 100);
+        const budgetStr = cat.budget !== null ? fmt(cat.budget) : 'N/A';
+        const percentStr = cat.percent !== null ? `${cat.percent}%` : 'N/A';
+        
+        html += `
+            <div class="budget-item">
+                <div class="budget-item-header">
+                    <span class="budget-item-name">${cat.status} ${cat.name}</span>
+                    <span class="budget-item-values">${fmt(cat.spent)} / ${budgetStr} (${percentStr})</span>
+                </div>
+                <div class="budget-bar">
+                    <div class="budget-bar-fill ${getBarColor(percent)}" style="width: ${barWidth}%"></div>
+                </div>
+            </div>
+        `;
+    });
+    
+    const totalPercent = data.summary.total_percent !== null ? `${data.summary.total_percent}%` : 'N/A';
+    const totalBudget = data.summary.total_budget ? fmt(data.summary.total_budget) : 'N/A';
+    
+    html += `
+        <div class="budget-summary">
+            <span>Total</span>
+            <span>${fmt(data.summary.total_spent)} / ${totalBudget} (${totalPercent})</span>
+        </div>
+    `;
+    
+    content.innerHTML = html;
+}
+
+function showDebtModal(type, debtDet) {
+    openModal('debtModal');
+    const title = document.getElementById('debtModalTitle');
+    const content = document.getElementById('debtModalContent');
+    
+    let html = '';
+    
+    if (type === 'high-apr') {
+        title.textContent = '🔥 High-APR Debt Breakdown';
+        html = `
+            <div class="debt-section">
+                <div class="debt-section-title">Debts (Highest APR First)</div>
+                ${renderDebtItem('TF Bank', debtDet.tf, '24% APR')}
+                ${renderDebtItem('Deutsche Bank', debtDet.db, '15% APR')}
+                ${renderDebtItem('Klarna', debtDet.klarna, '15% APR')}
+                ${renderDebtItem('Nordea', debtDet.nordea, '8% APR')}
+                ${renderDebtItem('Aktia', debtDet.aktia, '6% APR')}
+            </div>
+        `;
+    } else if (type === 'low-apr') {
+        title.textContent = '📉 Low-APR Debt Breakdown';
+        html = `
+            <div class="debt-section">
+                <div class="debt-section-title">Low-APR Debts</div>
+                ${debtDet.scalable ? renderDebtItem('Scalable Credit', debtDet.scalable, '3.3% APR') : ''}
+                ${debtDet.ak ? renderDebtItem('AK Payback', debtDet.ak, '0% APR') : ''}
+            </div>
+        `;
+    } else if (type === 'fixed') {
+        title.textContent = '📋 Fixed Loans Breakdown';
+        html = `
+            <div class="debt-section">
+                <div class="debt-section-title">Fixed Payment Loans</div>
+                ${renderDebtItem('Revolut', debtDet.revolut, 'Fixed')}
+                ${renderDebtItem('C3 Family', debtDet.c3, 'Fixed')}
+                ${renderDebtItem('Student Loan', debtDet.student, 'Fixed')}
+                ${renderDebtItem('IKEA Card', debtDet.ikea, 'Fixed')}
+                ${renderDebtItem('N26 Overdraft', debtDet.n26, 'Fixed')}
+            </div>
+        `;
+    } else if (type === 'sap') {
+        title.textContent = '🏢 SAP Loan Details';
+        html = `
+            <div class="debt-section">
+                <div class="debt-section-title">SAP Employee Loan (0% APR)</div>
+                ${renderDebtItem('Total SAP Loan', debtDet.sap, 'Until Jun 2033')}
+                ${debtDet.sap?.h_balance !== undefined ? `
+                    <div class="debt-item" style="margin-top: 12px;">
+                        <span class="debt-item-name" style="color: var(--text-secondary);">Breakdown:</span>
+                    </div>
+                    <div class="debt-item">
+                        <span class="debt-item-name">Husband's Loan</span>
+                        <span class="debt-item-values"><span class="balance">${fmt(debtDet.sap.h_balance)}</span></span>
+                    </div>
+                    <div class="debt-item">
+                        <span class="debt-item-name">Wife's Loan</span>
+                        <span class="debt-item-values"><span class="balance">${fmt(debtDet.sap.w_balance)}</span></span>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }
+    
+    content.innerHTML = html;
+}
+
+function renderDebtItem(name, debt, info) {
+    if (!debt) return '';
+    const payment = debt.payment || 0;
+    const balance = debt.balance || 0;
+    
+    if (payment === 0 && balance === 0) return '';
+    
+    return `
+        <div class="debt-item">
+            <span class="debt-item-name">${name} <span style="color: var(--text-muted); font-size: 11px;">${info}</span></span>
+            <div class="debt-item-values">
+                <span class="payment">${fmt(payment)}/mo</span>
+                <span class="balance">Bal: ${fmt(balance)}</span>
+            </div>
+        </div>
+    `;
 }
 
 // ============ TOOLTIPS ============
@@ -998,34 +1558,20 @@ function showLinkTooltip(event, d) {
 function showNodeTooltip(event, d) {
     const tooltip = document.getElementById('tooltip');
     let html = `<div class="tooltip-title">${d.name}</div>`;
+    html += `<div class="tooltip-row"><span class="tooltip-label">Total</span><span class="tooltip-value">${fmt(d.value)}</span></div>`;
     
-    const data = d.data || {};
+    const data = d.data;
     
-    // Custom tooltips based on node type
-    if (d.name === 'High-APR Debt' && data.tf) {
-        html += `
-            <div class="tooltip-row"><span class="tooltip-label">TF Card</span><span class="tooltip-value">${fmt(data.tf.payment)} (bal: ${fmt(data.tf.balance)})</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">Klarna</span><span class="tooltip-value">${fmt(data.klarna.payment)} (bal: ${fmt(data.klarna.balance)})</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">Nordea</span><span class="tooltip-value">${fmt(data.nordea.payment)} (bal: ${fmt(data.nordea.balance)})</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">DB Overdraft</span><span class="tooltip-value">${fmt(data.db.payment)} (bal: ${fmt(data.db.balance)})</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">Aktia</span><span class="tooltip-value">${fmt(data.aktia.payment)} (bal: ${fmt(data.aktia.balance)})</span></div>
-        `;
-    } else if (d.name === 'Fixed Loans' && data.revolut) {
-        html += `
-            <div class="tooltip-row"><span class="tooltip-label">Revolut</span><span class="tooltip-value">${fmt(data.revolut.payment)}</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">C3 Family</span><span class="tooltip-value">${fmt(data.c3.payment)}</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">Student</span><span class="tooltip-value">${fmt(data.student.payment)}</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">IKEA</span><span class="tooltip-value">${fmt(data.ikea.payment)}</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">N26</span><span class="tooltip-value">${fmt(data.n26.payment)}</span></div>
-        `;
-    } else if (d.name === 'Mortgage' && data.payment) {
-        html += `
-            <div class="tooltip-row"><span class="tooltip-label">Payment</span><span class="tooltip-value">${fmt(data.payment)}</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">Principal</span><span class="tooltip-value">${fmt(data.principal)}</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">Interest</span><span class="tooltip-value">${fmt(data.interest)}</span></div>
-        `;
+    // Show relevant details based on node type
+    if (d.name === 'Expenses' && d.clickable) {
+        html += `<div class="tooltip-hint">Click for category breakdown</div>`;
+    } else if (d.name.includes('High-APR') || d.name.includes('Fixed') || d.name.includes('Low-APR') || d.name.includes('SAP Loan')) {
+        if (d.clickable) {
+            html += `<div class="tooltip-hint">Click for debt details</div>`;
+        }
     } else if (d.name === 'Investment' && data.begin !== undefined) {
         html += `
+            <div class="tooltip-divider"></div>
             <div class="tooltip-row"><span class="tooltip-label">Start</span><span class="tooltip-value">${fmt(data.begin)}</span></div>
             <div class="tooltip-row"><span class="tooltip-label">OWNSAP</span><span class="tooltip-value">${fmt(data.ownsap_contrib)}</span></div>
             <div class="tooltip-row"><span class="tooltip-label">Excess</span><span class="tooltip-value">${fmt(data.excess_contrib)}</span></div>
@@ -1034,6 +1580,7 @@ function showNodeTooltip(event, d) {
         `;
     } else if (d.name.includes('Gross') && data.gross) {
         html += `
+            <div class="tooltip-divider"></div>
             <div class="tooltip-row"><span class="tooltip-label">Gross</span><span class="tooltip-value">${fmt(data.gross)}</span></div>
             <div class="tooltip-row"><span class="tooltip-label">Time Account</span><span class="tooltip-value">-${fmt(data.ta)}</span></div>
             <div class="tooltip-row"><span class="tooltip-label">OWNSAP</span><span class="tooltip-value">-${fmt(data.ownsap)}</span></div>
@@ -1041,16 +1588,13 @@ function showNodeTooltip(event, d) {
             <div class="tooltip-divider"></div>
             <div class="tooltip-row"><span class="tooltip-label">Net</span><span class="tooltip-value">${fmt(data.net)}</span></div>
         `;
-    } else if (d.name === 'SAP Loan' && data.balance !== undefined) {
+    } else if (d.name === 'Mortgage' && data.payment) {
         html += `
+            <div class="tooltip-divider"></div>
             <div class="tooltip-row"><span class="tooltip-label">Payment</span><span class="tooltip-value">${fmt(data.payment)}</span></div>
-            <div class="tooltip-row"><span class="tooltip-label">Balance</span><span class="tooltip-value">${fmt(data.balance)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Principal</span><span class="tooltip-value">${fmt(data.principal)}</span></div>
+            <div class="tooltip-row"><span class="tooltip-label">Interest</span><span class="tooltip-value">${fmt(data.interest)}</span></div>
         `;
-    } else {
-        const inflow = d.targetLinks?.reduce((sum, l) => sum + l.value, 0) || 0;
-        const outflow = d.sourceLinks?.reduce((sum, l) => sum + l.value, 0) || 0;
-        if (inflow > 0) html += `<div class="tooltip-row"><span class="tooltip-label">Inflow</span><span class="tooltip-value">${fmt(inflow)}</span></div>`;
-        if (outflow > 0) html += `<div class="tooltip-row"><span class="tooltip-label">Outflow</span><span class="tooltip-value">${fmt(outflow)}</span></div>`;
     }
     
     tooltip.innerHTML = html;
@@ -1060,10 +1604,10 @@ function showNodeTooltip(event, d) {
 
 function moveTooltip(event) {
     const tooltip = document.getElementById('tooltip');
-    const x = event.clientX + 15;
-    const y = event.clientY - 10;
-    tooltip.style.left = x + 'px';
-    tooltip.style.top = y + 'px';
+    const x = event.pageX + 15;
+    const y = event.pageY - 10;
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
 }
 
 function hideTooltip() {
@@ -1071,16 +1615,38 @@ function hideTooltip() {
 }
 
 function updateLegend(nodes) {
-    document.getElementById('legend').innerHTML = nodes.map(n => `
-        <div class="legend-item">
-            <div class="legend-color" style="background: ${n.color}"></div>
-            <span>${n.name}</span>
-        </div>
-    `).join('');
+    const uniqueColors = [...new Set(nodes.map(n => n.color))];
+    const legend = document.getElementById('legend');
+    
+    const colorNames = {
+        [colors.h_salary]: 'H Income',
+        [colors.w_salary]: 'W Income',
+        [colors.h_rsu]: 'H RSU',
+        [colors.w_rsu]: 'W RSU',
+        [colors.youtube]: 'YouTube',
+        [colors.ownsap_sell]: 'OWNSAP Sold',
+        [colors.cmp]: 'CMP',
+        [colors.cmp_carry]: 'CMP Carry',
+        [colors.cmp_next]: 'To Next Month',
+        [colors.mortgage]: 'Mortgage',
+        [colors.sondertilgung]: 'Sondertilgung',
+        [colors.high_apr]: 'High-APR Debt',
+        [colors.low_apr]: 'Low-APR Debt',
+        [colors.fixed_debt]: 'Fixed Loans',
+        [colors.sap_loan]: 'SAP Loan',
+        [colors.expenses]: 'Expenses',
+        [colors.investment]: 'Investment',
+        [colors.cashpile]: 'Cashpile',
+        [colors.tax]: 'Tax & Deductions',
+        [colors.ta_deduction]: 'Time Account',
+        [colors.ownsap_ded]: 'OWNSAP Ded.',
+    };
+    
+    legend.innerHTML = uniqueColors
+        .filter(c => colorNames[c])
+        .map(c => `<div class="legend-item"><div class="legend-color" style="background:${c}"></div>${colorNames[c]}</div>`)
+        .join('');
 }
-
-// Start
-init();
 </script>
 </body>
 </html>
