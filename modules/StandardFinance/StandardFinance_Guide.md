@@ -1,7 +1,7 @@
 # Aaron Family Standard Finance Guide
 
-**Version:** 6.1.1  
-**Last Updated:** 2025-12-16 08:00 UTC+1  
+**Version:** 6.1.2  
+**Last Updated:** 2025-12-28 UTC+1  
 **Simulation Period:** January 2026 - December 2042 (204 months)  
 **Associated File:** `FinanceSource_v6.1.xlsx`
 
@@ -55,7 +55,7 @@ This guide documents the Aaron Family's comprehensive 17-year financial simulati
 | `RSU_Schedule` | RSU vesting reference by quarter | Active |
 | `Salary_Schedule` | Monthly salary/bonus with growth projections | **New in v6** |
 | `Debt_Register` | All 14 debts with details | Active |
-| `Monthly_Model_v4` | Main 204-row simulation (87 columns) | **Active - USE THIS** |
+| `Monthly_Model_v4` | Main 204-row simulation (88 columns) | **Active - USE THIS** |
 
 ### Deprecated Sheets
 - `Monthly_Model` - Original version
@@ -136,7 +136,7 @@ This guide documents the Aaron Family's comprehensive 17-year financial simulati
 +-----------------+  +-----------------+  +-----------------+
 |  MORTGAGE       |  |  DEBT           |  |  EXPENSES       |
 |                 |  |  REPAYMENT      |  |                 |
-|  EUR2,281/mo    |  |                 |  |  EUR4,090 base  |
+|  EUR2,281/mo    |  |                 |  |  EUR4,110 base  |
 |  Until Jun 2033 |  |  High-APR first |  |  +3%/yr inflate |
 |                 |  |  Then fixed     |  |                 |
 |  Sondertilgung: |  |                 |  |  2027: EUR4,213 |
@@ -156,7 +156,7 @@ This guide documents the Aaron Family's comprehensive 17-year financial simulati
 |  SONDERTILGUNG  |  |  CASHPILE       |  |  INVESTMENT     |
 |  (If conditions |  |                 |  |                 |
 |   met)          |  |  20% of excess  |  |  80% of excess  |
-|                 |  |  Target: EUR10K |  |  OWNSAP contrib |
+|                 |  |  Target: EUR15K |  |  OWNSAP contrib |
 |  EUR21,550/year |  |                 |  |  8.5%/yr growth |
 +-----------------+  +-----------------+  +-----------------+
 ```
@@ -607,8 +607,8 @@ After the balloon payment:
 | 5 | H_Salary_Growth | 5% | Annual |
 | 6 | H_Base_Bonus | €9,821 | 10% of total |
 | 9 | H_Bonus_TA_Rate | 35% | To Time Account |
-| 10 | H_TA_Monthly | €200 | Fixed |
-| 11 | H_OWNSAP_Rate | 10% | Of gross |
+| 8 | H_TA_Monthly | €200 | Fixed |
+| 58 | H_OWNSAP_Rate | 10% | Of gross |
 | 15 | W_Base_Salary | €74,348 | 90% of total |
 | 16 | W_Salary_Growth | 3.5% | Annual |
 | 17 | W_Base_Bonus | €8,261 | 10% of total |
@@ -618,10 +618,9 @@ After the balloon payment:
 
 | Row | Parameter | Value |
 |-----|-----------|-------|
-| 30 | SAP_Loan_Total | €52,500 |
-| 31 | SAP_Monthly_Pmt | €583.34 |
-| 32 | SAP_Benefit_Rate | 0.3%/month |
-| 33 | SAP_End_Month | 90 (Jun 2033) |
+| 64 | SAP_Loan_Total | €52,500 |
+| 65 | SAP_Monthly_Pmt | €583.33 |
+| 66 | SAP_End_Month | 120 (Jun 2033) |
 
 ### Mortgage Parameters
 
@@ -636,26 +635,26 @@ After the balloon payment:
 
 | Row | Parameter | Value |
 |-----|-----------|-------|
-| 80 | Buffer | €450 |
-| 81 | Total_Monthly_Budget | €4,090 |
-| 82 | Lifestyle_Inflation | 3% |
+| 86 | Buffer | €100 |
+| 87 | Total_Monthly_Budget | €4,110 |
+| 88 | Lifestyle_Inflation | 3% |
 
 ### Investment Parameters
 
 | Row | Parameter | Value |
 |-----|-----------|-------|
 | 41 | Inv_Starting_Balance | €12,000 |
-| 43 | Inv_Annual_Return | 8.5% |
+| 42 | Inv_Annual_Return | 8.5% |
 | 44 | Inv_Tax_Rate | 18.4625% |
 
 ### Target Parameters
 
 | Row | Parameter | Value |
 |-----|-----------|-------|
-| 85 | Cashpile_Target_Phase1 | €5,000 |
-| 86 | Cashpile_Target_Phase2 | €10,000 |
-| 87 | CMP_Cap | €10,000 |
-| 92 | Cashpile_Allocation_Rate | 20% |
+| 91 | Cashpile_Target_Phase1 | €5,000 |
+| 92 | Cashpile_Target_Phase2 | €15,000 |
+| 93 | CMP_Cap | €10,000 |
+| 98 | Cashpile_Allocation_Rate | 20% |
 
 ---
 
@@ -711,7 +710,7 @@ TaxRes_Beg = IF(A{row}=1, 0, CA{row-1})
 |------|-------|
 | Mar 2026 | ALL High-APR debt cleared |
 | Apr 2026 | N26 Overdraft paid off |
-| Apr 2027 | First Sondertilgung (€21,550) |
+| May 2027 | First Sondertilgung (€21,550) |
 | Apr 2027 | C3 Family Loan paid off |
 | Jul 2027 | IKEA Card paid off |
 | Aug 2027 | Revolut Loan paid off |
@@ -742,10 +741,10 @@ TaxRes_Beg = IF(A{row}=1, 0, CA{row-1})
 | Jan 2026 W_Net_Salary | ~€2,855 |
 | Jan 2026 SAP_Loan_Pmt | €583.34 |
 | Jan 2026 H_SAP_TaxedAdv | €78.75 |
-| Jan 2026 Expenses | €4,090 |
+| Jan 2026 Expenses | €4,110 |
 | Apr 2026 H_Gross_Bonus | €9,821 |
 | Apr 2026 Month_Type | FAT_BONUS |
-| Apr 2027 Sondertilgung | €21,550 |
+| May 2027 Sondertilgung | €21,550 |
 | Jan 2027 TaxRes_Beg | €0 (reset) |
 | Jun 2033 Mort_End | €0 |
 | Jun 2033 SAP_Loan_Bal | €0 |
@@ -755,14 +754,23 @@ TaxRes_Beg = IF(A{row}=1, 0, CA{row-1})
 
 ## VERSION HISTORY
 
+### v6.1.2 (2025-12-28 UTC+1)
+- **Documentation sync**: Aligned guide with xlsx source of truth
+- **Column count**: Corrected to 88 (was documented as 87)
+- **Cashpile_Target_Phase2**: Corrected to €15,000 (was documented as €10,000)
+- **Budget**: Corrected to €4,110 with €100 buffer (was documented as €4,090/€450)
+- **First Sondertilgung**: Corrected to May 2027 (was documented as Apr 2027)
+- **Debt minimums**: Corrected to Klarna €200, Nordea €100, Aktia €30
+- **Assumptions row references**: Updated all row numbers to match actual xlsx
+
 ### v6.1.1 (2025-12-16 08:00 UTC+1)
 - **Sondertilgung 1x/year fix**: Now strictly enforces max 1 payment per calendar year
 - **Separate salary modifiers**: H_Salary_Modifier (col C) and W_Salary_Modifier (col D)
 - **2033 balloon handling**: No regular Sondertilgung in balloon year
-- **Sondertilgung schedule**: 5 regular (2028-2032) + 1 balloon (Jul 2033)
+- **Sondertilgung schedule**: 6 regular (May 2027, Jan 2028-2032) + 1 balloon (Jul 2033)
 
 ### v6.1.0 (2025-12-16 07:30 UTC+1)
-- **Debt minimums**: Klarna €250, Nordea €200, Aktia €50 enforced during attack
+- **Debt minimums**: Klarna €200, Nordea €100, Aktia €30 enforced during attack
 - **CMP negative floor**: Can go to -€1,000 (was €0)
 - **Salary_Schedule modifier**: Added column for easy raise adjustments
 - **Time Account hourly rate**: Now dynamic = Salary / 208 days
@@ -799,4 +807,4 @@ TaxRes_Beg = IF(A{row}=1, 0, CA{row-1})
 
 ---
 
-*End of Standard Finance Guide v6.1.0*
+*End of Standard Finance Guide v6.1.2*
