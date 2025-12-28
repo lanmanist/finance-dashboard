@@ -1,7 +1,13 @@
 /**
  * ShadowLedger - Google Apps Script
- * Version: 2.0.0
- * Date: 2025-12-17
+ * Version: 2.1.0
+ * Date: 2025-12-28
+ * 
+ * Features v2.1 (Income Tracking):
+ * 10. !income command for salary, youtube, other income
+ * 11. !ta command for Time Account hours
+ * 12. !income status command to check monthly input completion
+ * 13. Automated monthly reminder (Day 1, 6, 11, 16, 21, 26)
  * 
  * Features v2:
  * 1. Extended spender aliases (h/w/husband/wife/nha/anh/aaron/trang/chang/em)
@@ -17,12 +23,13 @@
 
 // ============ CONFIGURATION ============
 const CONFIG = {
-  SPREADSHEET_ID: '1mrMCTbgPxjxbkHepDiQk_ddN0cbJ-A-GWWtwt3wOgSU', // ADD YOUR SPREADSHEET ID HERE
+  SPREADSHEET_ID: '1mrMCTbgPxjxbkHepDiQk_ddN0cbJ-A-GWWtwt3wOgSU',
   SHEETS: {
     LEDGER: 'ShadowLedger',
     BUDGET: 'SL_Budget',
     PATTERNS: 'SL_Patterns',
-    CONFIG: 'SL_Config'
+    CONFIG: 'SL_Config',
+    INCOME_LOG: 'SL_Income_Log'  // NEW: Income tracking sheet
   },
   TIMEZONE: 'Europe/Berlin',
   CATEGORIES: [
@@ -43,7 +50,14 @@ const CONFIG = {
     'Donation',
     'Special IO',
     'Buffer'
-  ]
+  ],
+  // NEW: Income types configuration
+  INCOME_TYPES: {
+    'salary': { column: 'net_salary', requiresSpender: true, label: 'Net Salary' },
+    'youtube': { column: 'yt_gross', requiresSpender: false, label: 'YouTube Gross' },
+    'other': { column: 'other_fam_net_inc', requiresSpender: false, label: 'Other Income' }
+  },
+  REMINDER_DAYS: [1, 6, 11, 16, 21, 26]  // Days to send reminder
 };
 
 // Feature #1: Extended spender aliases
@@ -77,9 +91,9 @@ function doGet(e) {
     return getDashboardData();
   }
   
-  // Route: Expense breakdown by month (NEW)
+  // Route: Expense breakdown by month
   if (action === 'expenses') {
-    const month = e.parameter.month; // e.g., "2025-12"
+    const month = e.parameter.month;
     if (!month) {
       return ContentService.createTextOutput(JSON.stringify({
         success: false,
@@ -99,7 +113,8 @@ function doGet(e) {
         '?action=dashboard - Financial data for Sankey',
         '?action=expenses&month=YYYY-MM - Expense breakdown',
         '?action=test - This health check'
-      ]
+      ],
+      features: ['expenses', 'income', 'ta_hours', 'reminders']
     })).setMimeType(ContentService.MimeType.JSON);
   }
   
@@ -138,7 +153,7 @@ function logMultipleExpenses(lines, username) {
   let successCount = 0;
   let failCount = 0;
   let totalAmount = 0;
-  const categorySpending = {}; // Track spending per category
+  const categorySpending = {};
   
   for (const line of lines) {
     try {
@@ -147,7 +162,6 @@ function logMultipleExpenses(lines, username) {
         successCount++;
         totalAmount += result.amount;
         results.push(`✦ €${result.amount.toFixed(2)} → ${result.category}`);
-        // Aggregate by category
         if (!categorySpending[result.category]) {
           categorySpending[result.category] = 0;
         }
@@ -162,7 +176,6 @@ function logMultipleExpenses(lines, username) {
     }
   }
   
-  // Build budget status for affected categories
   const monthKey = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM');
   let budgetLines = [];
   for (const cat of Object.keys(categorySpending)) {
@@ -189,21 +202,16 @@ function handleCommand(message, username) {
   const cmd = parts[0];
   
   if (cmd === '!help') {
-    const helpText = `**ShadowLedger v2 Commands**
+    const helpText = `**ShadowLedger v2.1 Commands**
 
-📍 **Logging (flexible format):**
+📍 **Expense Logging (flexible format):**
 Any order works! Examples:
 • 45 rewe
 • rewe 45€ wife yesterday
 • 27 lidl 01.03 husband
-• football ticket 25 anh
 
 📦 **Multi-line batch:**
-Use Shift+Enter for line breaks, then:
-45 rewe
-30 lidl
-15 dm
-→ Logs all 3 at once!
+Use Shift+Enter for line breaks
 
 👤 **Spender names:**
 H: h, husband, nha, anh, aaron
@@ -211,15 +219,27 @@ W: w, wife, trang, chang, em
 
 📆 **Dates:**
 yesterday, today, tomorrow
-06.03, 6/3, march 6, 6th march
+06.03, 6/3, march 6
 
-📋 **Commands:**
+📋 **Expense Commands:**
 !status - Monthly budget table
 !budgetleft - Remaining budget
 !ytd - Year to date table
 !today - Today's expenses
 !week - This week's expenses
 !undo - Delete last transaction
+
+💰 **Income Commands (NEW):**
+!income 4200 salary h - Log H net salary
+!income 3800 salary w - Log W net salary
+!income 1200 youtube - Log YT gross
+!income 50 other payback - Log other income
+!income status - Check what's missing
+
+⏱️ **Time Account:**
+!ta 45 h - Log H hours added
+!ta 38 w - Log W hours added
+
 !help - Show this message`;
     sendDiscordMessage(helpText);
     return { success: true };
@@ -229,12 +249,10 @@ yesterday, today, tomorrow
     return getBudgetStatus();
   }
   
-  // Feature #8: !budgetleft command
   if (cmd === '!budgetleft') {
     return getBudgetLeft();
   }
   
-  // Feature #4: !ytd command
   if (cmd === '!ytd') {
     return getYTDStatus();
   }
@@ -247,7 +265,6 @@ yesterday, today, tomorrow
     return getWeekTransactions();
   }
   
-  // Feature #9: !undo command
   if (cmd === '!undo') {
     if (parts.length > 1 && parts[1] === 'confirm') {
       return executeUndo(username);
@@ -255,8 +272,455 @@ yesterday, today, tomorrow
     return handleUndo(username);
   }
   
+  // NEW: Income commands
+  if (cmd === '!income') {
+    if (parts.length >= 2 && parts[1] === 'status') {
+      return getIncomeStatus();
+    }
+    return handleIncomeCommand(message, username);
+  }
+  
+  // NEW: Time Account command
+  if (cmd === '!ta') {
+    return handleTACommand(message, username);
+  }
+  
   sendDiscordMessage('❌ Unknown command. Type !help for available commands.');
   return { success: false, error: 'Unknown command' };
+}
+
+// ============ NEW: INCOME LOGGING (v2.1) ============
+
+function handleIncomeCommand(message, username) {
+  const parts = message.trim().split(/\s+/);
+  
+  if (parts.length < 3) {
+    sendDiscordMessage(`❌ **Format:** !income [amount] [type] [h/w] [description]
+
+**Types:** salary, youtube, other
+**Examples:**
+• !income 4200 salary h
+• !income 3800 salary w
+• !income 1200 youtube
+• !income 50 other payback cashout`);
+    return { success: false, error: 'Invalid format' };
+  }
+  
+  // Extract amount
+  let amount = null;
+  let amountIndex = -1;
+  for (let i = 1; i < parts.length; i++) {
+    const num = parseFloat(parts[i].replace('€', '').replace(',', '.'));
+    if (!isNaN(num) && num > 0) {
+      amount = num;
+      amountIndex = i;
+      break;
+    }
+  }
+  
+  if (!amount) {
+    sendDiscordMessage('❌ Could not parse amount. Use: !income 4200 salary h');
+    return { success: false, error: 'No amount found' };
+  }
+  
+  // Extract type
+  let incomeType = null;
+  let typeIndex = -1;
+  for (let i = 1; i < parts.length; i++) {
+    if (CONFIG.INCOME_TYPES[parts[i]]) {
+      incomeType = parts[i];
+      typeIndex = i;
+      break;
+    }
+  }
+  
+  if (!incomeType) {
+    sendDiscordMessage('❌ Unknown income type. Use: salary, youtube, or other');
+    return { success: false, error: 'Unknown type' };
+  }
+  
+  const typeConfig = CONFIG.INCOME_TYPES[incomeType];
+  
+  // Extract spender if required
+  let spender = null;
+  if (typeConfig.requiresSpender) {
+    for (let i = 1; i < parts.length; i++) {
+      if (i !== amountIndex && i !== typeIndex) {
+        const alias = parts[i].toLowerCase();
+        if (SPENDER_ALIASES[alias]) {
+          spender = SPENDER_ALIASES[alias];
+          break;
+        }
+      }
+    }
+    if (!spender) {
+      sendDiscordMessage(`❌ Salary requires spender (h/w). Use: !income ${amount} salary h`);
+      return { success: false, error: 'Missing spender' };
+    }
+  }
+  
+  // Extract description
+  let description = '';
+  const usedIndices = new Set([0, amountIndex, typeIndex]);
+  if (spender) {
+    for (let i = 1; i < parts.length; i++) {
+      if (SPENDER_ALIASES[parts[i].toLowerCase()]) {
+        usedIndices.add(i);
+        break;
+      }
+    }
+  }
+  const descParts = parts.filter((_, i) => !usedIndices.has(i));
+  description = descParts.join(' ');
+  
+  // Determine month (previous month)
+  const now = new Date();
+  const targetMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const monthKey = Utilities.formatDate(targetMonth, CONFIG.TIMEZONE, 'yyyy-MM');
+  
+  // Log to SL_Income_Log
+  const result = logIncomeEntry(incomeType, amount, spender, description, monthKey, username);
+  
+  if (result.success) {
+    const spenderStr = spender ? ` (${spender})` : '';
+    const updateStr = result.updated ? ' *(updated)*' : '';
+    sendDiscordMessage(`✅ **Income Logged**${updateStr}
+━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 €${amount.toFixed(2)} → ${typeConfig.label}${spenderStr}
+📅 For: ${monthKey}
+📝 ${description || '(no description)'}
+━━━━━━━━━━━━━━━━━━━━━━━━━
+Use **!income status** to see what's still missing`);
+  }
+  
+  return result;
+}
+
+function logIncomeEntry(type, amount, spender, description, monthKey, inputter) {
+  try {
+    const sheet = getOrCreateIncomeSheet();
+    const now = new Date();
+    const timestamp = Utilities.formatDate(now, CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss");
+    const entryId = `INC-${Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyyMMdd-HHmmss')}`;
+    
+    // Check if entry already exists (update if so)
+    const data = sheet.getDataRange().getValues();
+    let existingRow = null;
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][1] === monthKey && data[i][2] === type && data[i][4] === (spender || '')) {
+        existingRow = i + 1;
+        break;
+      }
+    }
+    
+    if (existingRow) {
+      sheet.getRange(existingRow, 4).setValue(amount);
+      sheet.getRange(existingRow, 6).setValue(description);
+      sheet.getRange(existingRow, 7).setValue(timestamp);
+      sheet.getRange(existingRow, 8).setValue(inputter);
+      return { success: true, updated: true };
+    } else {
+      sheet.appendRow([entryId, monthKey, type, amount, spender || '', description, timestamp, inputter]);
+      return { success: true, updated: false };
+    }
+  } catch (e) {
+    sendDiscordMessage('❌ Error logging income: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
+
+// ============ NEW: TIME ACCOUNT LOGGING (v2.1) ============
+
+function handleTACommand(message, username) {
+  const parts = message.trim().split(/\s+/);
+  
+  if (parts.length < 3) {
+    sendDiscordMessage(`❌ **Format:** !ta [hours] [h/w]
+
+**Examples:**
+• !ta 45 h - Husband added 45 hours
+• !ta 38 w - Wife added 38 hours`);
+    return { success: false, error: 'Invalid format' };
+  }
+  
+  // Extract hours
+  let hours = null;
+  for (let i = 1; i < parts.length; i++) {
+    const num = parseFloat(parts[i].replace(',', '.'));
+    if (!isNaN(num) && num >= 0) {
+      hours = num;
+      break;
+    }
+  }
+  
+  if (hours === null) {
+    sendDiscordMessage('❌ Could not parse hours. Use: !ta 45 h');
+    return { success: false, error: 'No hours found' };
+  }
+  
+  // Extract spender
+  let spender = null;
+  for (let i = 1; i < parts.length; i++) {
+    const alias = parts[i].toLowerCase();
+    if (alias === 'h' || alias === 'w' || SPENDER_ALIASES[alias]) {
+      spender = SPENDER_ALIASES[alias] || alias.toUpperCase();
+      break;
+    }
+  }
+  
+  if (!spender) {
+    sendDiscordMessage('❌ Please specify h or w. Use: !ta 45 h');
+    return { success: false, error: 'Missing spender' };
+  }
+  
+  // Month for previous month
+  const now = new Date();
+  const targetMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const monthKey = Utilities.formatDate(targetMonth, CONFIG.TIMEZONE, 'yyyy-MM');
+  
+  const taType = spender === 'H' ? 'ta_h' : 'ta_w';
+  const result = logTAEntry(taType, hours, spender, monthKey, username);
+  
+  if (result.success) {
+    const label = spender === 'H' ? 'Husband' : 'Wife';
+    const updateStr = result.updated ? ' *(updated)*' : '';
+    sendDiscordMessage(`✅ **Time Account Logged**${updateStr}
+━━━━━━━━━━━━━━━━━━━━━━━━━
+⏱️ ${hours} hours → ${label}
+📅 For: ${monthKey}
+━━━━━━━━━━━━━━━━━━━━━━━━━
+Use **!income status** to see what's still missing`);
+  }
+  
+  return result;
+}
+
+function logTAEntry(type, hours, spender, monthKey, inputter) {
+  try {
+    const sheet = getOrCreateIncomeSheet();
+    const now = new Date();
+    const timestamp = Utilities.formatDate(now, CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss");
+    const entryId = `TA-${Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyyMMdd-HHmmss')}`;
+    
+    const data = sheet.getDataRange().getValues();
+    let existingRow = null;
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][1] === monthKey && data[i][2] === type) {
+        existingRow = i + 1;
+        break;
+      }
+    }
+    
+    if (existingRow) {
+      sheet.getRange(existingRow, 4).setValue(hours);
+      sheet.getRange(existingRow, 7).setValue(timestamp);
+      sheet.getRange(existingRow, 8).setValue(inputter);
+      return { success: true, updated: true };
+    } else {
+      sheet.appendRow([entryId, monthKey, type, hours, spender, '', timestamp, inputter]);
+      return { success: true, updated: false };
+    }
+  } catch (e) {
+    sendDiscordMessage('❌ Error logging TA hours: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
+
+// ============ NEW: INCOME STATUS CHECK (v2.1) ============
+
+function getIncomeStatus(monthKeyOverride) {
+  const now = new Date();
+  const targetMonth = monthKeyOverride || Utilities.formatDate(
+    new Date(now.getFullYear(), now.getMonth() - 1, 1), 
+    CONFIG.TIMEZONE, 
+    'yyyy-MM'
+  );
+  
+  const sheet = getOrCreateIncomeSheet();
+  const data = sheet.getDataRange().getValues();
+  
+  const entered = {
+    'salary_h': false,
+    'salary_w': false,
+    'youtube': false,
+    'ta_h': false,
+    'ta_w': false
+  };
+  
+  const amounts = {};
+  
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][1] === targetMonth) {
+      const type = data[i][2];
+      const amount = data[i][3];
+      const spender = data[i][4];
+      
+      if (type === 'salary' && spender === 'H') {
+        entered['salary_h'] = true;
+        amounts['salary_h'] = amount;
+      } else if (type === 'salary' && spender === 'W') {
+        entered['salary_w'] = true;
+        amounts['salary_w'] = amount;
+      } else if (type === 'youtube') {
+        entered['youtube'] = true;
+        amounts['youtube'] = amount;
+      } else if (type === 'other') {
+        amounts['other'] = (amounts['other'] || 0) + amount;
+      } else if (type === 'ta_h') {
+        entered['ta_h'] = true;
+        amounts['ta_h'] = amount;
+      } else if (type === 'ta_w') {
+        entered['ta_w'] = true;
+        amounts['ta_w'] = amount;
+      }
+    }
+  }
+  
+  const allComplete = Object.values(entered).every(v => v);
+  const statusEmoji = allComplete ? '✅' : '📋';
+  
+  let response = `${statusEmoji} **Income Status for ${targetMonth}**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+`;
+  
+  response += entered['salary_h'] 
+    ? `✅ H Net Salary: €${amounts['salary_h'].toFixed(2)}\n`
+    : `❌ H Net Salary: *missing*\n`;
+    
+  response += entered['salary_w']
+    ? `✅ W Net Salary: €${amounts['salary_w'].toFixed(2)}\n`
+    : `❌ W Net Salary: *missing*\n`;
+    
+  response += entered['youtube']
+    ? `✅ YouTube Gross: €${amounts['youtube'].toFixed(2)}\n`
+    : `❌ YouTube Gross: *missing*\n`;
+    
+  response += amounts['other']
+    ? `✅ Other Income: €${amounts['other'].toFixed(2)}\n`
+    : `➖ Other Income: €0 (assumed)\n`;
+    
+  response += entered['ta_h']
+    ? `✅ H TA Hours: ${amounts['ta_h']} hrs\n`
+    : `❌ H TA Hours: *missing*\n`;
+    
+  response += entered['ta_w']
+    ? `✅ W TA Hours: ${amounts['ta_w']} hrs\n`
+    : `❌ W TA Hours: *missing*\n`;
+  
+  response += `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+  
+  if (!allComplete) {
+    response += `
+
+**Commands:**
+• !income [amount] salary h/w
+• !income [amount] youtube
+• !income [amount] other [desc]
+• !ta [hours] h/w`;
+  } else {
+    response += `
+
+🎉 All required inputs complete!`;
+  }
+  
+  sendDiscordMessage(response);
+  return { success: true, complete: allComplete, entered: entered };
+}
+
+// ============ NEW: MONTHLY REMINDER TRIGGER (v2.1) ============
+
+/**
+ * Set up this function as a daily time-driven trigger at 8:00 AM
+ * Triggers → Add Trigger → checkAndSendIncomeReminder → Time-driven → Day timer → 8am to 9am
+ */
+function checkAndSendIncomeReminder() {
+  const now = new Date();
+  const dayOfMonth = now.getDate();
+  
+  if (!CONFIG.REMINDER_DAYS.includes(dayOfMonth)) {
+    Logger.log('Not a reminder day, skipping');
+    return;
+  }
+  
+  const targetMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const monthKey = Utilities.formatDate(targetMonth, CONFIG.TIMEZONE, 'yyyy-MM');
+  
+  const sheet = getOrCreateIncomeSheet();
+  const data = sheet.getDataRange().getValues();
+  
+  const entered = {
+    'salary_h': false,
+    'salary_w': false,
+    'youtube': false,
+    'ta_h': false,
+    'ta_w': false
+  };
+  
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][1] === monthKey) {
+      const type = data[i][2];
+      const spender = data[i][4];
+      
+      if (type === 'salary' && spender === 'H') entered['salary_h'] = true;
+      else if (type === 'salary' && spender === 'W') entered['salary_w'] = true;
+      else if (type === 'youtube') entered['youtube'] = true;
+      else if (type === 'ta_h') entered['ta_h'] = true;
+      else if (type === 'ta_w') entered['ta_w'] = true;
+    }
+  }
+  
+  const allComplete = Object.values(entered).every(v => v);
+  
+  if (allComplete) {
+    Logger.log('All income inputs complete for ' + monthKey);
+    return;
+  }
+  
+  let missing = [];
+  if (!entered['salary_h']) missing.push('❌ H Net Salary');
+  if (!entered['salary_w']) missing.push('❌ W Net Salary');
+  if (!entered['youtube']) missing.push('❌ YouTube Gross');
+  if (!entered['ta_h']) missing.push('❌ H TA Hours');
+  if (!entered['ta_w']) missing.push('❌ W TA Hours');
+  
+  const reminder = `📋 **MONTHLY INCOME UPDATE NEEDED**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**${monthKey}** inputs still missing:
+
+${missing.join('\n')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Commands:**
+• !income [amount] salary h/w
+• !income [amount] youtube
+• !ta [hours] h/w
+
+Use **!income status** for full details`;
+
+  sendDiscordMessage(reminder);
+  Logger.log('Sent income reminder for ' + monthKey);
+}
+
+// ============ HELPER: CREATE INCOME SHEET IF NEEDED ============
+
+function getOrCreateIncomeSheet() {
+  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.INCOME_LOG);
+  
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.SHEETS.INCOME_LOG);
+    sheet.appendRow(['ID', 'MonthKey', 'Type', 'Amount', 'Spender', 'Description', 'Timestamp', 'InputBy']);
+    sheet.getRange(1, 1, 1, 8).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+    Logger.log('Created SL_Income_Log sheet');
+  }
+  
+  return sheet;
 }
 
 // ============ EXPENSE LOGGING ============
@@ -283,7 +747,6 @@ function logExpense(message, username) {
   }
   
   const txnId = generateTxnId();
-  // Create timezone-aware timestamps
   const now = new Date();
   const nowFormatted = Utilities.formatDate(now, CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss");
   const txnDate = parsed.date || now;
@@ -309,7 +772,6 @@ function logExpense(message, username) {
     "'" + monthKey
   ]);
   
-  // Feature #9: Store last transaction for undo
   const props = PropertiesService.getScriptProperties();
   props.setProperty('last_txn_id', txnId);
   props.setProperty('last_txn_user', inputter);
@@ -327,7 +789,6 @@ function logExpense(message, username) {
   };
 }
 
-// Silent version for multi-transaction (no Discord message per line)
 function logExpenseSilent(message, username) {
   const parsed = parseExpenseInput(message);
   
@@ -349,7 +810,6 @@ function logExpenseSilent(message, username) {
   }
   
   const txnId = generateTxnId();
-  // Create timezone-aware timestamps
   const now = new Date();
   const nowFormatted = Utilities.formatDate(now, CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss");
   const txnDate = parsed.date || now;
@@ -375,7 +835,6 @@ function logExpenseSilent(message, username) {
     "'" + monthKey
   ]);
   
-  // Store last transaction for undo
   const props = PropertiesService.getScriptProperties();
   props.setProperty('last_txn_id', txnId);
   props.setProperty('last_txn_user', inputter);
@@ -394,7 +853,6 @@ function logExpenseSilent(message, username) {
 function parseExpenseInput(input) {
   input = input.trim();
   
-  // Feature #5: Try Gemini first for flexible parsing
   const geminiResult = parseWithGemini(input);
   if (geminiResult && geminiResult.amount && geminiResult.merchant) {
     return {
@@ -407,56 +865,41 @@ function parseExpenseInput(input) {
     };
   }
   
-  // Fallback to regex parsing
   return parseExpenseInputRegex(input);
 }
 
-// Regex-based parsing (fallback)
 function parseExpenseInputRegex(input) {
-  // Extract amount - prioritize numbers with € or e symbol, then standalone numbers
-  // Avoid matching date parts like "01" or "03" from "01.03"
-  
-  // Strategy: First remove date patterns temporarily, find amount, then restore
   const datePatterns = [];
   let cleanInput = input.replace(/\d{1,2}[.\/]\d{1,2}([.\/]\d{2,4})?/g, (match) => {
     datePatterns.push(match);
     return `__DATE${datePatterns.length - 1}__`;
   });
   
-  // Try with € or e suffix first (18€, 18e, 18.50€, 18,50e) - e must not be followed by letters
   let amountMatch = cleanInput.match(/(\d+(?:[.,]\d+)?)\s*[€e](?![a-df-z])/i);
   if (!amountMatch) {
-    amountMatch = cleanInput.match(/(?:^|\s)(\d+(?:[.,]\d+)?)/); // Any standalone number
+    amountMatch = cleanInput.match(/(?:^|\s)(\d+(?:[.,]\d+)?)/);
   }
   if (!amountMatch) return null;
   
   const amount = parseFloat(amountMatch[1].replace(',', '.'));
   
-  // Remove amount from original input (not cleanInput)
-  // Find and remove the amount value + optional euro symbol from original
   const amountStr = amountMatch[1];
   input = input.replace(new RegExp('(^|\\s)' + amountStr.replace('.', '\\.').replace(',', '\\,') + '\\s*[€e]?(?![a-df-z])', 'i'), '$1').trim();
   
-  // Feature #1: Extended spender aliases
-  // Must be standalone word with space separation (not part of another word)
   let spender = null;
   const aliasPattern = Object.keys(SPENDER_ALIASES).join('|');
   const spenderRegex = new RegExp(`(?:^|\\s)(${aliasPattern})(?:\\s|$)`, 'i');
   const spenderMatch = input.match(spenderRegex);
   if (spenderMatch) {
     spender = SPENDER_ALIASES[spenderMatch[1].toLowerCase()];
-    // Remove only the alias word, preserve surrounding structure
     input = input.replace(new RegExp(`(?:^|\\s)${spenderMatch[1]}(?:\\s|$)`, 'i'), ' ').trim();
   }
   
-  // Feature #6: Enhanced date parsing
   let date = parseDate(input);
   if (date) {
-    // Remove date patterns from input
     input = removeDatePatterns(input);
   }
   
-  // Check for explicit category
   let category = null;
   for (const cat of CONFIG.CATEGORIES) {
     const catLower = cat.toLowerCase();
@@ -467,7 +910,6 @@ function parseExpenseInputRegex(input) {
     }
   }
   
-  // Remaining is merchant
   const merchant = input.replace(/\s+/g, ' ').trim() || 'Unknown';
   
   return {
@@ -480,7 +922,6 @@ function parseExpenseInputRegex(input) {
   };
 }
 
-// Feature #5: Gemini-powered flexible parsing
 function parseWithGemini(input) {
   const config = getConfigValues();
   const apiKey = config.gemini_api_key;
@@ -550,9 +991,7 @@ Return ONLY valid JSON like:
   return null;
 }
 
-// Feature #6: Enhanced date parsing
 function parseDate(input) {
-  // Get current date in Berlin timezone
   const now = new Date();
   const berlinNow = new Date(Utilities.formatDate(now, CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss"));
   const todayStr = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM-dd');
@@ -561,14 +1000,11 @@ function parseDate(input) {
   const currentMonth = parseInt(todayParts[1]) - 1;
   const currentDay = parseInt(todayParts[2]);
   
-  // Create a date at noon in Berlin timezone to avoid DST issues
   function createDate(year, month, day) {
-    // Create date string and parse it properly for the timezone
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}T12:00:00`;
     return new Date(Utilities.formatDate(new Date(dateStr), CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss"));
   }
   
-  // Relative dates
   if (/\byesterday\b/i.test(input)) {
     return createDate(currentYear, currentMonth, currentDay - 1);
   }
@@ -579,7 +1015,6 @@ function parseDate(input) {
     return createDate(currentYear, currentMonth, currentDay + 1);
   }
   
-  // DD.MM.YYYY or DD/MM/YYYY or DD.MM.YY
   let match = input.match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4})/);
   if (match) {
     let year = parseInt(match[3]);
@@ -587,13 +1022,11 @@ function parseDate(input) {
     return createDate(year, parseInt(match[2]) - 1, parseInt(match[1]));
   }
   
-  // DD.MM or DD/MM (current year)
   match = input.match(/(\d{1,2})[.\/](\d{1,2})(?!\d)/);
   if (match) {
     return createDate(currentYear, parseInt(match[2]) - 1, parseInt(match[1]));
   }
   
-  // Month names
   const months = {
     'jan': 0, 'january': 0, 'feb': 1, 'february': 1, 'mar': 2, 'march': 2,
     'apr': 3, 'april': 3, 'may': 4, 'jun': 5, 'june': 5, 'jul': 6, 'july': 6,
@@ -601,13 +1034,11 @@ function parseDate(input) {
     'nov': 10, 'november': 10, 'dec': 11, 'december': 11
   };
   
-  // "6 march", "6th march"
   match = input.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/i);
   if (match) {
     return createDate(currentYear, months[match[2].toLowerCase().substring(0,3)], parseInt(match[1]));
   }
   
-  // "march 6"
   match = input.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})/i);
   if (match) {
     return createDate(currentYear, months[match[1].toLowerCase().substring(0,3)], parseInt(match[2]));
@@ -617,16 +1048,9 @@ function parseDate(input) {
 }
 
 function removeDatePatterns(input) {
-  // Remove relative dates
   input = input.replace(/\b(yesterday|today|tomorrow)\b/gi, '');
-  
-  // Remove DD.MM.YYYY or DD/MM/YYYY
   input = input.replace(/\d{1,2}[.\/]\d{1,2}[.\/]\d{2,4}/g, '');
-  
-  // Remove DD.MM or DD/MM
   input = input.replace(/\d{1,2}[.\/]\d{1,2}(?!\d)/g, '');
-  
-  // Remove month name patterns
   input = input.replace(/\d{1,2}(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/gi, '');
   input = input.replace(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}/gi, '');
   
@@ -636,7 +1060,6 @@ function removeDatePatterns(input) {
 // ============ CATEGORIZATION ============
 
 function categorizeExpense(merchant) {
-  // First try pattern matching (fast)
   const patterns = getSheet(CONFIG.SHEETS.PATTERNS);
   const data = patterns.getDataRange().getValues();
   
@@ -648,7 +1071,6 @@ function categorizeExpense(merchant) {
     }
   }
   
-  // Feature #7: Pattern not found - try Gemini AI
   const aiCategory = aiCategorize(merchant);
   if (aiCategory) {
     return aiCategory;
@@ -657,7 +1079,6 @@ function categorizeExpense(merchant) {
   return 'Buffer';
 }
 
-// Feature #7: Gemini AI categorization
 function aiCategorize(merchant) {
   const config = getConfigValues();
   const apiKey = config.gemini_api_key;
@@ -736,13 +1157,11 @@ function calculateCategorySpent(category, monthKey) {
   const sheet = getSheet(CONFIG.SHEETS.LEDGER);
   const data = sheet.getDataRange().getValues();
   
-  // Remove apostrophe prefix from search key if present
   const searchKey = monthKey.replace(/^'/, '');
   
   let total = 0;
   for (let i = 1; i < data.length; i++) {
     let storedKey = data[i][14];
-    // Handle apostrophe prefix in stored values
     if (storedKey && typeof storedKey === 'string') {
       storedKey = storedKey.replace(/^'/, '');
     }
@@ -756,7 +1175,6 @@ function calculateCategorySpent(category, monthKey) {
 
 // ============ COMMANDS ============
 
-// Feature #3: Enhanced !status with percentages (table format)
 function getBudgetStatus() {
   const monthKey = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM');
   const monthName = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'MMMM yyyy');
@@ -805,7 +1223,6 @@ function getBudgetStatus() {
   return { success: true };
 }
 
-// Feature #8: !budgetleft command (table format)
 function getBudgetLeft() {
   const monthKey = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM');
   const monthName = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'MMMM yyyy');
@@ -855,7 +1272,6 @@ function getBudgetLeft() {
   return { success: true };
 }
 
-// Feature #4: !ytd command
 function getYTDStatus() {
   const now = new Date();
   const year = now.getFullYear();
@@ -885,7 +1301,6 @@ function getYTDStatus() {
     for (let j = 1; j < ledgerData.length; j++) {
       const txnCategory = ledgerData[j][6];
       let monthKey = ledgerData[j][14];
-      // Handle apostrophe prefix (stored as '2025-12 to force text format)
       if (monthKey && typeof monthKey === 'string') {
         monthKey = monthKey.replace(/^'/, '');
       }
@@ -985,7 +1400,6 @@ function getWeekTransactions() {
   return { success: true };
 }
 
-// Feature #9: !undo command
 function handleUndo(username) {
   const props = PropertiesService.getScriptProperties();
   const lastTxnId = props.getProperty('last_txn_id');
@@ -1050,11 +1464,10 @@ function executeUndo(username) {
     const sheet = getSheet(CONFIG.SHEETS.LEDGER);
     const data = sheet.getDataRange().getValues();
     
-    // Re-find the row by transaction ID (row numbers can shift)
     let rowToDelete = null;
     for (let i = 1; i < data.length; i++) {
       if (data[i][0] === pendingUndo) {
-        rowToDelete = i + 1; // Sheet rows are 1-indexed
+        rowToDelete = i + 1;
         break;
       }
     }
@@ -1159,51 +1572,40 @@ function generateTxnId() {
   return `SL-${dateStr}-${timeStr}-${rand}`;
 }
 
+// ============ DASHBOARD API ============
 
-/**
- * Get expense breakdown for a specific month
- * Called via: ?action=expenses&month=2026-01
- */
 function getExpenseBreakdown(month) {
   try {
     const ledgerSheet = getSheet(CONFIG.SHEETS.LEDGER);
     const budgetSheet = getSheet(CONFIG.SHEETS.BUDGET);
     
-    // Parse month parameter
     const [year, monthNum] = month.split('-').map(Number);
     const monthStart = new Date(year, monthNum - 1, 1);
-    const monthEnd = new Date(year, monthNum, 0); // Last day of month
+    const monthEnd = new Date(year, monthNum, 0);
     
-    // Get all transactions for the month
     const ledgerData = ledgerSheet.getDataRange().getValues();
     const categoryTotals = {};
     
-    // Initialize all categories with 0
     CONFIG.CATEGORIES.forEach(cat => {
       categoryTotals[cat] = 0;
     });
     
-    // Sum transactions by category for the specified month
     for (let i = 1; i < ledgerData.length; i++) {
-      const txnDate = new Date(ledgerData[i][2]); // Column C: txn_date
-      const amount = ledgerData[i][3] || 0;       // Column D: amount
-      const category = ledgerData[i][6];          // Column G: category
+      const txnDate = new Date(ledgerData[i][2]);
+      const amount = ledgerData[i][3] || 0;
+      const category = ledgerData[i][6];
       
-      // Check if transaction is in the target month
       if (txnDate >= monthStart && txnDate <= monthEnd) {
         if (categoryTotals.hasOwnProperty(category)) {
           categoryTotals[category] += amount;
         } else {
-          // Handle unexpected categories
           categoryTotals[category] = amount;
         }
       }
     }
     
-    // Get budgets for the month
     const budgetData = budgetSheet.getDataRange().getValues();
-    const monthKey = `'${month}`; // Format: '2026-01
-    const monthKeyAlt = month;    // Also check without apostrophe
+    const monthKeyAlt = month;
     
     const budgetMap = {};
     for (let i = 1; i < budgetData.length; i++) {
@@ -1211,18 +1613,15 @@ function getExpenseBreakdown(month) {
       const budget = budgetData[i][1] || 0;
       let storedMonthKey = budgetData[i][2] || '';
       
-      // Normalize month key (remove apostrophe if present)
       if (typeof storedMonthKey === 'string') {
         storedMonthKey = storedMonthKey.replace(/^'/, '');
       }
       
-      // Match month
       if (storedMonthKey === monthKeyAlt || storedMonthKey === month) {
         budgetMap[category] = budget;
       }
     }
     
-    // Build response
     const categories = [];
     let totalSpent = 0;
     let totalBudget = 0;
@@ -1238,7 +1637,7 @@ function getExpenseBreakdown(month) {
         spent: spent,
         budget: hasBudget ? budget : null,
         percent: percent,
-        status: getStatusEmoji(percent)
+        status: getStatusEmojiDashboard(percent)
       });
       
       totalSpent += spent;
@@ -1247,7 +1646,6 @@ function getExpenseBreakdown(month) {
       }
     });
     
-    // Sort by spent (highest first)
     categories.sort((a, b) => b.spent - a.spent);
     
     return ContentService.createTextOutput(JSON.stringify({
@@ -1273,10 +1671,7 @@ function getExpenseBreakdown(month) {
   }
 }
 
-/**
- * Get status emoji based on percentage
- */
-function getStatusEmoji(percent) {
+function getStatusEmojiDashboard(percent) {
   if (percent === null) return 'N/A';
   if (percent >= 100) return '🔴';
   if (percent >= 80) return '🟠';
@@ -1284,9 +1679,6 @@ function getStatusEmoji(percent) {
   return '🟢';
 }
 
-/**
- * Get month name from number
- */
 function getMonthName(monthNum) {
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -1295,9 +1687,6 @@ function getMonthName(monthNum) {
   return months[monthNum - 1] || 'Unknown';
 }
 
-/**
- * Count transactions in a date range
- */
 function countTransactionsInMonth(ledgerData, monthStart, monthEnd) {
   let count = 0;
   for (let i = 1; i < ledgerData.length; i++) {
@@ -1309,14 +1698,12 @@ function countTransactionsInMonth(ledgerData, monthStart, monthEnd) {
   return count;
 }
 
-// ============ TEST FUNCTION ============
+// ============ TEST FUNCTIONS ============
 
 function testExpenseBreakdown() {
-  // Test with current month
   const now = new Date();
   const month = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM');
   
-  // Simulate the API call
   const result = getExpenseBreakdown(month);
   const content = result.getContent();
   const data = JSON.parse(content);
@@ -1327,9 +1714,13 @@ function testExpenseBreakdown() {
   Logger.log('Total Spent: €' + data.summary.total_spent);
   Logger.log('Budget Available: ' + data.summary.budget_available);
   
-  // Log top 3 categories
   Logger.log('\nTop 3 Categories:');
   data.categories.slice(0, 3).forEach(cat => {
     Logger.log(`  ${cat.name}: €${cat.spent} / €${cat.budget || 'N/A'} (${cat.percent || 'N/A'}%)`);
   });
+}
+
+function testIncomeStatus() {
+  const result = getIncomeStatus();
+  Logger.log('Income status test complete');
 }
