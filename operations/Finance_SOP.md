@@ -1,110 +1,465 @@
-# **Aaron Family Finance: System Architecture & Operating Manual**
+# Aaron Family Finance — Operations Blueprint
 
-**Version:** 1.0
+```yaml
+version: v1.0.0
+last_updated: 2025-12-29 00:15:00 UTC+2
+status: Production
+parent_system: Aaron Family Financial Model v6.1
+modules_covered: Finance_SOP, Monthly Checklist
+```
 
-**Created:** December 16, 2025
+---
 
-**Purpose:** To document the methodology, validation, and operational workflow for the Aaron Family Financial Model.
+## TABLE OF CONTENTS
 
-## **1\. System Architecture: "The Financial Machine"**
+1. [System Overview](#1-system-overview)
+2. [The Monthly Cycle](#2-the-monthly-cycle)
+3. [Daily Operations](#3-daily-operations)
+4. [Monthly Hard Close](#4-monthly-hard-close)
+5. [Quarterly Reviews](#5-quarterly-reviews)
+6. [Annual Tasks](#6-annual-tasks)
+7. [Command Reference](#7-command-reference)
+8. [Troubleshooting](#8-troubleshooting)
+9. [Technical Implementation](#9-technical-implementation)
+10. [Architectural Decisions](#10-architectural-decisions)
+11. [Future Enhancements](#11-future-enhancements)
 
-Your financial model is not just a budget; it is a **Cash Flow-Based Simulation** (industry term: *Rolling Forecast*). It focuses on allocating surplus rather than just tracking expenses.
+---
 
-### **Core Components**
+## 1. SYSTEM OVERVIEW
 
-1. **The Engine (Income):** High fixed salaries \+ "Fat Months" (Quarterly RSU/Bonuses) \+ Side Hustle (YouTube).  
-2. **The Hub (CMP):** The **Central Master Pot** acts as a corporate "Sweep Account." It is capped at €10,000. All income lands here; all bills are paid from here.  
-3. **The Sweep Logic:**  
-   * **Baseline:** Maintain €10k in CMP.  
-   * **Overflow:** Excess \>€10k is automatically swept: 20% to Cashpile (Safety), 80% to Investments (Growth).  
-4. **The "Rocket Fuel" (Sondertilgung):** A logic gate that triggers large mortgage principal payments (\~€21.5k) only when safety and investment targets are met.
+### 1.1 The Financial Machine
 
-### **Key Rules**
+Your financial model is a **Cash Flow-Based Simulation** (Rolling Forecast) that focuses on allocating surplus rather than just tracking expenses.
 
-* **The 1-Month Lag:** Income earned in Jan is spent in Feb. This creates a permanent liquidity buffer.  
-* **The "Shadow Ledger":** A separate, simple list for tracking daily expenses that feeds the main model.  
-* **The "Hard Close":** The monthly ritual of converting "Plan" (Formulas) into "History" (Hard Values).
+**Core Components:**
 
-## **2\. Methodology Validation**
+| Component | Purpose | Tool |
+|-----------|---------|------|
+| **The Engine** | Income tracking | ShadowLedger `!income` |
+| **The Hub (CMP)** | Central Master Pot (€10K cap) | StandardFinance |
+| **The Tracker** | Daily expense logging | ShadowLedger Discord |
+| **The Sweep** | Overflow allocation (20% Cash, 80% Invest) | StandardFinance formulas |
+| **The Visualizer** | Cash flow diagrams | Dashboard |
 
-### **What You Are Doing Right (Pro Level)**
+### 1.2 Key Rules
 
-* **Reverse Budgeting:** You prioritize savings/debt targets first. Spending is what remains. This is the superior method for high earners.  
-* **Algorithmic Decision Making:** Removing emotion from the Sondertilgung decision prevents cash-poor mistakes.  
-* **Tax Segregation:** Reserving 44.3% of YouTube income *before* it hits the checking account protects you from year-end tax shocks.
+| Rule | Description |
+|------|-------------|
+| **1-Month Lag** | Income earned in Jan is spent in Feb (permanent liquidity buffer) |
+| **CMP Baseline** | Maintain €10K in CMP; excess triggers sweep logic |
+| **Avalanche Debt** | Attack highest-APR debt first |
+| **Hard Close** | Monthly ritual converting projections → actuals |
 
-### **Risks & Mitigations**
+### 1.3 System URLs
 
-* **SAP Concentration Risk:** Your jobs and your RSUs are both SAP.  
-  * *Mitigation:* Ensure the "Investment" pot buys global ETFs (e.g., MSCI World), not more SAP stock.  
-* **Salary Timing Gap:** The model assumes Jan salary pays Jan bills. In reality, Dec salary pays Jan bills.  
-  * *Mitigation:* Handled via the "Hard Close" procedure where you input the *actual* net cash received.  
-* **"False Optimism" in Budgeting:** Assuming unspent budget is "saved" mid-month.  
-  * *Mitigation:* Use the MAX(Budget, Actual) formula during the active month to ringfence funds.
+| Component | URL |
+|-----------|-----|
+| Dashboard | https://lanmanist.github.io/finance-dashboard/ |
+| Google Sheet | FinanceSource_v6_1 (private) |
+| Discord | #expenses channel |
 
-## **3\. The Monthly Operational Playbook**
+---
 
-This is your recurring ritual to maintain the **Dynamic Rolling Forecast**.
+## 2. THE MONTHLY CYCLE
 
-### Phase 0: Daily Ritual (New)
-* Log all expenses via ShadowLedger Discord
-* Check !status before large purchases
-* Target: <60 seconds per transaction
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         MONTHLY OPERATIONS CYCLE                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Day 1-5          Day 6-14         Day 15          Day 25-31           │
+│  ┌─────────┐      ┌─────────┐      ┌─────────┐     ┌─────────┐         │
+│  │ Income  │      │  Hard   │      │ Mid-Mo  │     │ Month   │         │
+│  │ Input   │─────▶│  Close  │─────▶│ Review  │────▶│ End     │         │
+│  │         │      │         │      │         │     │ Prep    │         │
+│  └─────────┘      └─────────┘      └─────────┘     └─────────┘         │
+│                                                                         │
+│  ONGOING: Daily expense logging via Discord                             │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
-### **Phase 1: The "Launch" (Day 1\)**
+### 2.1 Automated Reminders
 
-* **Check the Flight Plan:** Look at the current month's column. Is the projected CMP\_End negative?  
-* **Set Controls:** If projected negative, cut discretionary spending targets *immediately*.
+ShadowLedger sends income reminders on Days **1, 6, 11, 16, 21, 26** until all inputs are complete.
 
-### **Phase 2: The "Execution" (Day 2 – 29\)**
+---
 
-* **Feed the Shadow Ledger:** Log transactions in your Shadow\_Expenses tab (Groceries, etc.).  
-* **The "Live" Sensor:** The Exp\_Alloc cell in your main model updates instantly  
-  * *Meaning:* During the month, it pessimistically assumes you will spend your full budget. After the month, it reveals the truth.
+## 3. DAILY OPERATIONS
 
-### Phase 2.5: Weekly Review (New)
-* Every Sunday: Review Dashboard
-* Check all "red" budget categories
-* Adjust upcoming week spending
+### 3.1 Expense Logging
 
-### **Phase 3: The "Hard Close" (Day 1 of Next Month)**
+**Target:** <60 seconds per transaction
 
-* **Prerequisite:** Save a snapshot copy (Aaron\_Finance\_YYYY\_MM\_Snapshot.xlsx).  
-* **Step 1: Income Truth:** Log into the bank. Overwrite the Net Salary cells with the exact amount received on Dec 31st (for Jan).  
-* **Step 2: Expense Lock-in:** The formula will now show the actual sum from Shadow Ledger. Copy this cell and **Paste Values** to lock it forever.  
-* **Step 3: Mark-to-Market:**  
-  * Overwrite Inv\_End with actual Brokerage Balance.  
-  * Overwrite D\_TF\_Bal / D\_Klarna\_Bal with actual Debt Balances.  
-  * **Critical:** Overwrite CMP\_End with your actual Checking Account Balance.  
-* **Step 4: Color Code:** Highlight the row **Light Yellow** to signify "Closed."
+```
+Discord: 45 rewe
+Discord: 27 lidl wife yesterday
+Discord: rewe 45€ husband
+```
 
-### **Phase 4: The "Re-Forecast" (Immediate)**
+**Batch Logging:** Use Shift+Enter for multiple lines
+```
+45 rewe
+32 dm
+15 backerei
+```
 
-* Scroll down to future months (White cells).  
-* Observe how the new CMP\_End ripples through to 2042\.  
-* *Accept the new reality.* You have successfully re-routed.
+### 3.2 Before Large Purchases
 
-### Phase 5: Quarterly Review (New)
-* Compare actual vs projected
-* RSU vest verification
-* Sondertilgung planning
+```
+Discord: !status
+```
+Review budget status before spending >€50 on discretionary items.
 
-## **4\. Technical Implementation Details**
+### 3.3 Investment Transfers
 
-### **The "Self-Closing" Formula**
+Log immediately when making transfers:
+```
+Discord: !invest 500 scalable
+Discord: !invest 1000 revolut ETF purchase
+```
 
-Use this in your Exp\_Alloc (Column BP) to automate the switch between "Guardrail" and "Truth":
+---
 
-\=IF( TODAY() \> EOMONTH($C2, 0),  
-     SUMIFS(Shadow\_Expenses\!C:C, Shadow\_Expenses\!A:A, "\>="&$C2, Shadow\_Expenses\!A:A, "\<="\&EOMONTH($C2,0)),  
-     MAX($BO2, SUMIFS(Shadow\_Expenses\!C:C, Shadow\_Expenses\!A:A, "\>="&$C2, Shadow\_Expenses\!A:A, "\<="\&EOMONTH($C2,0)))  
+## 4. MONTHLY HARD CLOSE
+
+**When:** Day 1-5 of each month  
+**Time Required:** 30-45 minutes  
+**Tools:** Bank access, Google Sheets, Discord
+
+### 4.1 Phase 1: Income Input (Day 1-5)
+
+| # | Task | Command | Source |
+|---|------|---------|--------|
+| 1 | H Net Salary | `!income [amt] salary h` | Payslip |
+| 2 | W Net Salary | `!income [amt] salary w` | Payslip |
+| 3 | YouTube Gross | `!income [amt] youtube` | AdSense |
+| 4 | H TA Hours | `!ta [hrs] h` | Payslip/SAP |
+| 5 | W TA Hours | `!ta [hrs] w` | Payslip/SAP |
+| 6 | Other Income | `!income [amt] other [desc]` | Bank (if any) |
+| 7 | **Verify** | `!income status` | All ✅ |
+
+**Note:** Income logs to PREVIOUS month (reconciliation pattern).
+
+### 4.2 Phase 2: Hard Close (Day 5-10)
+
+| # | Task | Location |
+|---|------|----------|
+| 1 | Confirm `!income status` = all ✅ | Discord |
+| 2 | Review investments | `!invest status` |
+| 3 | Open FinanceSource_v6_1 | Google Sheets |
+| 4 | Check CMP_End (positive?) | Monthly_Model_v4 |
+| 5 | Verify Exp_Alloc (col **BQ**) matches ShadowLedger | Compare totals |
+| 6 | Compare Inv_Excess actual vs projected | Monthly_Model_v4 |
+
+### 4.3 Phase 3: Mark-to-Market
+
+Update actual balances from bank accounts:
+
+**Investment Account:**
+- [ ] Log into brokerage
+- [ ] Update `Inv_End` (column BV) with actual
+
+**Debt Balances:**
+- [ ] TF Card → `D_TF_Bal`
+- [ ] Klarna → `D_Klarna_Bal`
+- [ ] Nordea → `D_Nordea_Bal`
+- [ ] DB Overdraft → `D_DB_Bal`
+- [ ] Aktia → `D_Aktia_Bal`
+- [ ] SAP Loan → `SAP_Loan_Bal`
+
+**Other Balances:**
+- [ ] Mortgage → `Mort_End`
+- [ ] CMP (Checking) → `CMP_End`
+- [ ] Cashpile (Savings) → `Cash_End`
+
+### 4.4 Phase 4: Visual Confirmation
+
+- [ ] Highlight closed month row in **light yellow**
+- [ ] Scroll to Dec 2042 — verify no #REF or #VALUE errors
+- [ ] Check Net Worth trajectory looks reasonable
+
+### 4.5 Phase 5: Dashboard Verification
+
+- [ ] Open Dashboard
+- [ ] Click Refresh
+- [ ] Select closed month
+- [ ] Verify Sankey flows match expectations
+- [ ] Check stat cards show correct values
+
+### 4.6 Phase 6: ShadowLedger Reset Check
+
+```
+Discord: !status
+```
+- [ ] Confirm all categories show €0 spent (new month)
+- [ ] Verify budget amounts are correct
+
+---
+
+## 5. QUARTERLY REVIEWS
+
+**When:** End of Mar, Jun, Sep, Dec
+
+### 5.1 RSU Verification (Jan, Apr, Jul, Oct)
+
+- [ ] Confirm RSU vest amount matches RSU_Schedule
+- [ ] Record actual net received after tax
+
+### 5.2 Sondertilgung Check
+
+- [ ] Verify conditions were/weren't met
+- [ ] If paid, confirm mortgage balance reduced by €21,550
+
+### 5.3 Quarterly Comparison
+
+- [ ] Compare actual vs projected for quarter
+- [ ] Note major variances
+- [ ] Adjust assumptions if needed
+
+---
+
+## 6. ANNUAL TASKS
+
+**When:** January
+
+### 6.1 Year-End Review
+
+- [ ] Compare actual 20XX vs projected 20XX
+- [ ] Note major variances
+- [ ] Update Assumptions if needed (salary raises, etc.)
+
+### 6.2 Budget Adjustment
+
+- [ ] Review SL_Budget amounts
+- [ ] Adjust for 3% lifestyle inflation if desired
+- [ ] Update any category budgets based on actual patterns
+
+### 6.3 Tax Preparation
+
+- [ ] Note YT Tax Reserve total for tax filing
+- [ ] Export relevant transaction data if needed
+
+---
+
+## 7. COMMAND REFERENCE
+
+### 7.1 Expense Commands
+
+| Command | Purpose |
+|---------|---------|
+| `45 rewe` | Log €45 expense at Rewe |
+| `27 lidl wife yesterday` | Log with spender + date |
+| `!status` | Monthly budget table |
+| `!budgetleft` | Remaining budget per category |
+| `!ytd` | Year-to-date spending |
+| `!today` | Today's transactions |
+| `!week` | This week's transactions |
+| `!undo` → `!undo confirm` | Delete last transaction |
+
+### 7.2 Income Commands
+
+| Command | Purpose | Target Month |
+|---------|---------|--------------|
+| `!income 4200 salary h` | Log H net salary | Previous |
+| `!income 3800 salary w` | Log W net salary | Previous |
+| `!income 1200 youtube` | Log YouTube gross | Previous |
+| `!income 50 other payback` | Log other income | Previous |
+| `!ta 45 h` | Log H hours added | Previous |
+| `!ta 38 w` | Log W hours added | Previous |
+| `!income status` | Check what's missing | Previous |
+
+### 7.3 Investment Commands
+
+| Command | Purpose | Target Month |
+|---------|---------|--------------|
+| `!invest 500 scalable` | Log transfer to Scalable | Current |
+| `!invest 1000 revolut ETF` | Log with notes | Current |
+| `!invest status` | This month's transfers | Current |
+
+### 7.4 Spender Aliases
+
+| Husband | Wife |
+|---------|------|
+| h, husband, nha, anh, aaron | w, wife, trang, chang, em |
+
+### 7.5 Date Formats
+
+| Format | Example |
+|--------|---------|
+| Relative | yesterday, today, tomorrow |
+| DD.MM | 06.03, 6/3 |
+| Natural | march 6 |
+
+---
+
+## 8. TROUBLESHOOTING
+
+| Issue | Solution |
+|-------|----------|
+| Exp_Alloc shows wrong value | Check ShadowLedger tab has correct month's transactions |
+| Dashboard won't load | Check Apps Script deployment, try incognito window |
+| CMP_End goes very negative | Review debt payments, may need to adjust timing |
+| Formula errors (#REF) | Check for deleted rows/columns, restore from backup |
+| Bot offline | Check Render.com service, verify keep-alive |
+| No response from bot | Verify Cloudflare Worker URL |
+| Wrong category | Add pattern to SL_Patterns sheet |
+| Income not saving | Run command to auto-create sheet |
+
+---
+
+## 9. TECHNICAL IMPLEMENTATION
+
+### 9.1 The Self-Closing Formula
+
+**Location:** Column BQ (Exp_Alloc)
+
+This formula automatically switches between "Guardrail" mode (during month) and "Truth" mode (after month closes):
+
+```
+=IF( TODAY() > EOMONTH($C2, 0),
+     SUMIFS(ShadowLedger!D:D, ShadowLedger!C:C, ">="&$C2, ShadowLedger!C:C, "<="&EOMONTH($C2,0)),
+     MAX($BP2, SUMIFS(ShadowLedger!D:D, ShadowLedger!C:C, ">="&$C2, ShadowLedger!C:C, "<="&EOMONTH($C2,0)))
 )
+```
 
-### **The Shadow Ledger Columns**
+**Logic:**
+- **During month:** Uses MAX(Budget, Actual) — pessimistically assumes full budget spend
+- **After month:** Uses actual ShadowLedger sum only
 
-* **Date**  
-* **Category** (Must match Assumptions sheet dropdowns exactly)  
-* **Amount**  
-* **Description**
+### 9.2 Income Integration
 
-*End of Standard Operating Procedure*
+**Location:** Columns L, T, AG, AJ
+
+Income columns use formula pattern:
+```
+=IFERROR(
+  VLOOKUP(month_key, SL_Income_Log_Range, value_column, FALSE),
+  projection_value
+)
+```
+
+**Behavior:** Actual from SL_Income_Log overrides projection; future months retain projection.
+
+### 9.3 Investment Integration
+
+**Location:** SL_Investment_Log sheet
+
+Each `!invest` command creates a new row:
+- **ID:** INV-YYYYMMDD-HHMMSS
+- **Date:** Transfer date
+- **MonthKey:** YYYY-MM (current month)
+- **Amount:** Euro amount
+- **Destination:** scalable / revolut / comdirect / trade_republic / other
+- **Notes:** Optional description
+
+### 9.4 Column Reference
+
+| Column | Letter | Description |
+|--------|--------|-------------|
+| Exp_Budget | BP | Base × (1 + 3%)^years |
+| Exp_Alloc | BQ | Self-closing formula (actuals or MAX) |
+| H_Net_Salary | L | Actual from SL_Income_Log OR projection |
+| W_Net_Salary | T | Actual from SL_Income_Log OR projection |
+| YT_Gross | AG | Actual from SL_Income_Log OR projection |
+| Other_Fam_Net_Inc | AJ | Sum from SL_Income_Log (type="other") |
+
+---
+
+## 10. ARCHITECTURAL DECISIONS
+
+### ADR-017: Income Tracking via ShadowLedger
+- **Decision:** Add income tracking commands to ShadowLedger
+- **Rationale:** Income has variability (YouTube, tax impact, Payback) that projection alone cannot capture
+- **Alternative rejected:** Manual Excel entry — lacks real-time tracking and reminder system
+
+### ADR-018: Actuals Override Projection Pattern
+- **Decision:** When actual income is logged, it replaces projection for that month only
+- **Rationale:** "Jan is actual, Feb onwards stays at original projection"
+- **Impact:** Cascades through CMP and all downstream calculations
+
+### ADR-019: TA Hours Input Method
+- **Decision:** Input hours added per month (not cumulative, not deduction amount)
+- **Rationale:** Hours visible on SAP portal; hourly rate changes annually
+
+### ADR-020: Automated Reminder System
+- **Decision:** Time-triggered reminders on Day 1, 6, 11, 16, 21, 26
+- **Rationale:** Ensures monthly actuals are captured; stops once all inputs complete
+
+### ADR-021: Other_Fam_Net_Inc Default Behavior
+- **Decision:** Assume €0 if not entered (no explicit zero-entry required)
+- **Rationale:** Reduces input burden for months without Payback/refunds
+
+### ADR-022: Investment Tracking via ShadowLedger
+- **Decision:** Add `!invest` command to log actual investment transfers
+- **Rationale:** Investment is projection-only; actual transfers vary due to opportunistic investing
+
+### ADR-023: Investment Logs to Current Month
+- **Decision:** `!invest` logs to CURRENT month (unlike `!income` → previous)
+- **Rationale:** Log investments as they happen (real-time), not during reconciliation
+
+### ADR-024: Destination Tracking for Investments
+- **Decision:** Track destination (Scalable, Revolut, Comdirect, Trade Republic, Other)
+- **Rationale:** Visibility into where money goes for portfolio management
+
+### ADR-025: Multiple Entries Per Month
+- **Decision:** Each `!invest` creates a new row (no update-in-place)
+- **Rationale:** Multiple transfers per month are common; each is a unique event
+
+---
+
+## 11. FUTURE ENHANCEMENTS
+
+### 11.1 Operations Improvements
+
+| # | Enhancement | Effort | Priority |
+|---|-------------|--------|----------|
+| 1 | Automated bank statement reconciliation | 8-10h | Medium |
+| 2 | Push notifications for budget alerts | 4-5h | Medium |
+| 3 | Mobile-friendly checklist app | 10-12h | Low |
+| 4 | Automated backup to Google Drive | 2-3h | High |
+
+### 11.2 Integration Ideas
+
+- Email parsing for receipts
+- Bank API for auto-import transactions
+- Calendar integration for financial milestones
+
+---
+
+## APPENDIX A: COMPLETION SIGN-OFF
+
+**Month Closed:** _______________  
+**Date Completed:** _______________  
+**Completed By:** _______________
+
+### Verification Checklist:
+- [ ] Income logged (`!income status` = all ✅)
+- [ ] Investments logged (`!invest status` reviewed)
+- [ ] All actuals recorded in Sheet
+- [ ] Row highlighted yellow
+- [ ] Dashboard verified
+- [ ] No formula errors
+- [ ] ShadowLedger reset confirmed
+
+---
+
+## APPENDIX B: FILES ABSORBED
+
+This Blueprint consolidates:
+
+| File | Status |
+|------|--------|
+| `Finance_SOP.md` | ✅ Absorbed |
+| `MONTHLY_CHECKLIST.md` | ✅ Absorbed |
+| `MONTHLY_CHECKLIST_v2.md` | ✅ Absorbed |
+| `Finance_SOP_changelog_20251228_1830.md` | ✅ Absorbed (ADR-017 to ADR-021) |
+| `Finance_SOP_changelog_20251228_1945.md` | ✅ Absorbed (ADR-022 to ADR-025) |
+
+---
+
+**END OF OPERATIONS BLUEPRINT v1.0.0**
+
+*Last Updated: 2025-12-29 00:15:00 UTC+2*  
+*Next Review: After first full month using this Blueprint*

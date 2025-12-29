@@ -1,7 +1,7 @@
 # Aaron Family Finance System
 
-**Version:** 1.0  
-**Last Updated:** December 2025  
+**Version:** 2.0  
+**Last Updated:** December 29, 2025  
 **Status:** Production
 
 ---
@@ -24,8 +24,9 @@ A comprehensive personal finance management system for the Aaron Family, consist
 │  │                 │  │                 │  │                 │         │
 │  │  Daily expense  │  │  17-year cash   │  │  Sankey flow    │         │
 │  │  tracking via   │──▶  flow model     │──▶  visualization  │         │
-│  │  Discord        │  │  (Excel/Sheets) │  │  (GitHub Pages) │         │
+│  │  Discord        │  │  (Google Sheets)│  │  (GitHub Pages) │         │
 │  │                 │  │                 │  │                 │         │
+│  │  v2.2.0         │  │  v6.1           │  │  v3.1           │         │
 │  │  Cost: €0/mo    │  │  Cost: €0/mo    │  │  Cost: €0/mo    │         │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘         │
 │                                                                         │
@@ -42,10 +43,19 @@ A comprehensive personal finance management system for the Aaron Family, consist
 2. Type: `45 rewe` (amount + merchant)
 3. Done! Bot confirms and shows budget status
 
+### For Income Logging (Monthly)
+1. Run `!income 4200 salary h` for salary
+2. Run `!ta 45 h` for Time Account hours
+3. Run `!income status` to verify completion
+
+### For Investment Tracking
+1. Run `!invest 500 scalable` when making transfers
+2. Run `!invest status` to see monthly totals
+
 ### For Monthly Review
 1. Run `!status` in Discord for budget overview
 2. Open Dashboard for visual cash flow
-3. Follow [MONTHLY_CHECKLIST.md](operations/MONTHLY_CHECKLIST.md)
+3. Follow [Operations Blueprint](Operations_Blueprint_v1_0_0.md)
 
 ### For Financial Planning
 1. Open StandardFinance model in Google Sheets
@@ -56,34 +66,42 @@ A comprehensive personal finance management system for the Aaron Family, consist
 
 ## Module Summary
 
-| Module | Purpose | Interface | Documentation |
-|--------|---------|-----------|---------------|
-| **ShadowLedger** | Daily expense tracking | Discord bot | [ShadowLedger_Blueprint.md](modules/shadowledger/ShadowLedger_Blueprint.md) |
-| **StandardFinance** | 17-year financial model | Google Sheets/Excel | [StandardFinance_Guide.md](modules/standard-finance/StandardFinance_Guide.md) |
-| **Dashboard** | Cash flow visualization | Web (GitHub Pages) | [Dashboard_Blueprint.md](modules/dashboard/Dashboard_Blueprint.md) |
+| Module | Version | Purpose | Interface | Documentation |
+|--------|---------|---------|-----------|---------------|
+| **ShadowLedger** | v2.2.0 | Daily expense, income & investment tracking | Discord bot | [BLUEPRINT_ShadowLedger_v2_2_0.md](BLUEPRINT_ShadowLedger_v2_2_0.md) |
+| **StandardFinance** | v6.1 | 17-year financial model (88 columns) | Google Sheets | [StandardFinance_Guide.md](StandardFinance_Guide.md) |
+| **Dashboard** | v3.1.0 | Cash flow visualization | Web (GitHub Pages) | [Dashboard_Blueprint_v3_1.md](Dashboard_Blueprint_v3_1.md) |
 
 ---
 
 ## Key Documents
 
-| Document | Purpose |
-|----------|---------|
-| [OVERALL_ARCHITECTURE.md](OVERALL_ARCHITECTURE.md) | System design, data flow, integrations |
-| [ROADMAP.md](ROADMAP.md) | Planned features across all modules |
-| [MONTHLY_CHECKLIST.md](operations/MONTHLY_CHECKLIST.md) | Step-by-step monthly ritual |
-| [SOP.md](operations/SOP.md) | Standard Operating Procedure |
+### 🔷 META / SYSTEM-LEVEL
 
----
+| File | Type | Purpose |
+|------|------|---------|
+| `OVERALL_README.md` | Meta | Quick start guide (this file) |
+| `OVERALL_ARCHITECTURE.md` | Meta | System design, data flows, integrations |
+| `ROADMAP.md` | Meta | Planned features across all modules |
+| `Aaron_Family_Finance_Assessment.md` | Meta | Deep health check report |
 
-## Technical Files
+### 🔷 MODULE BLUEPRINTS
 
-| Module | File | Purpose |
-|--------|------|---------|
-| ShadowLedger | `ShadowLedger_v2.gs` | Google Apps Script backend |
-| ShadowLedger | `ShadowLedger_Setup.md` | Cloudflare + Render deployment guide |
-| Dashboard | `Dashboard_Code.gs` | Google Apps Script API |
-| Dashboard | `Dashboard_UI.html` | Frontend (GitHub Pages) |
-| StandardFinance | `FinanceSource_v6_1.xlsx` | Main financial model |
+| File | Module | Purpose |
+|------|--------|---------|
+| `BLUEPRINT_ShadowLedger_v2_2_0.md` | ShadowLedger | Complete expense/income/investment tracking spec |
+| `Dashboard_Blueprint_v3_1.md` | Dashboard | Sankey visualization spec |
+| `StandardFinance_Guide.md` | StandardFinance | 17-year financial model documentation |
+| `Operations_Blueprint_v1_0_0.md` | Operations | SOP, Monthly Checklist, Procedures |
+
+### 🔷 TECHNICAL FILES
+
+| File | Module | Purpose |
+|------|--------|---------|
+| `ShadowLedger_Code.gs` | ShadowLedger + Dashboard | Google Apps Script backend (unified) |
+| `index.html` | Dashboard | Frontend UI (GitHub Pages) |
+| `FinanceSource_v6_1.xlsx` | StandardFinance | Main financial model |
+| `ShadowLedger_Cloudflare_Migration_Guide_v4.md` | ShadowLedger | Deployment guide |
 
 ---
 
@@ -92,9 +110,9 @@ A comprehensive personal finance management system for the Aaron Family, consist
 | Component | URL/Location |
 |-----------|--------------|
 | Dashboard | https://lanmanist.github.io/finance-dashboard/ |
-| Google Sheet | https://docs.google.com/spreadsheets/d/1rTVkCLy0yqq1sByvBuM-ENWM_3ctK0V1/edit |
+| Google Sheet | https://docs.google.com/spreadsheets/d/1mrMCTbgPxjxbkHepDiQk_ddN0cbJ-A-GWWtwt3wOgSU/edit |
 | Discord | #expenses channel in family server |
-| GitHub Repo | (Dashboard hosting) |
+| GitHub Repo | Dashboard hosting |
 
 ---
 
@@ -112,12 +130,46 @@ A comprehensive personal finance management system for the Aaron Family, consist
 
 ---
 
+## Current Feature Status
+
+### ShadowLedger v2.2.0 (16 Features Complete)
+
+| # | Feature | Status |
+|---|---------|--------|
+| 1-9 | MVP Features (expenses, commands, AI) | ✅ |
+| 10-13 | Income Tracking (!income, !ta, reminders) | ✅ |
+| 14-16 | Investment Tracking (!invest, status) | ✅ |
+
+### Dashboard v3.1.0
+
+| Feature | Status |
+|---------|--------|
+| Multi-month range selection | ✅ |
+| Simple/Detailed view toggle | ✅ |
+| Expense click modal with categories | ✅ |
+| Debt detail modals | ✅ |
+| Loading states & refresh feedback | ✅ |
+| Expanded expense view (17 categories) | ✅ |
+
+### StandardFinance v6.1
+
+| Feature | Status |
+|---------|--------|
+| 204-month simulation (Jan 2026 - Dec 2042) | ✅ |
+| 88-column model | ✅ |
+| POT system architecture | ✅ |
+| Sondertilgung logic | ✅ |
+| Salary_Schedule with modifiers | ✅ |
+| ShadowLedger → Exp_Alloc integration | ✅ |
+
+---
+
 ## Support
 
 - **Budget questions:** Run `!help` in Discord
-- **Technical issues:** Check module-specific documentation
+- **Technical issues:** Check module-specific blueprints
 - **Feature requests:** Add to [ROADMAP.md](ROADMAP.md)
 
 ---
 
-*Last Updated: December 2025*
+*Last Updated: December 29, 2025*

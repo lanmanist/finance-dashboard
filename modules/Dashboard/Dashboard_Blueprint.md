@@ -1,7 +1,7 @@
-# Dashboard Blueprint v3.0.0
+# Dashboard Blueprint v3.1.0
 ---
-version: 3.0.0
-lastUpdated: 2025-12-28 16:45:00
+version: 3.1.0
+lastUpdated: 2025-12-28 23:55:00
 module: Dashboard
 status: Production
 ---
@@ -59,7 +59,7 @@ A fully online, free dashboard that visualizes household cash flows as an intera
 - ✅ Rich hover insights on stat cards
 - ✅ Rich hover insights on Sankey nodes
 
-### v3 Features (Current - Dec 2024)
+### v3 Features (Completed - Dec 2024)
 - ✅ **API Integration with ShadowLedger** - Uses `?action=dashboard` routing
 - ✅ **88-Column v6.1 Model Support** - Updated from 77 columns
 - ✅ **Expense Click Modal** - Full category breakdown with colored budget progress bars (🟢🟡🟠🔴)
@@ -73,6 +73,15 @@ A fully online, free dashboard that visualizes household cash flows as an intera
 - ✅ **Pre-fetch Expense Data** - Instant hover tooltips via `prefetchExpenseData()`
 - ✅ **Expense API Endpoint** - `?action=expenses&month=YYYY-MM`
 - ✅ **Bug Fix: Total Outflow** - Excludes `mortgage_interest` and `mortgage_principal` (already in `mortgage_payment`)
+
+### v3.1 Features (Current - Dec 2024)
+- ✅ **Loading Overlay** - Semi-transparent overlay on Sankey during render
+- ✅ **Refresh Button Feedback** - Spinner animation while data loads
+- ✅ **Expense Loading Indicator** - "Loading expenses..." in status bar during prefetch
+- ✅ **Expense View Toggle** - Collapsed | Expanded button in controls bar
+- ✅ **Expanded Expense Sankey** - Individual category nodes with distinct colors
+- ✅ **Category Color Scheme** - 17 distinct purple-gradient colors for categories
+- ✅ **Min Amount Threshold** - €10 minimum; smaller categories grouped as "Other Expenses"
 
 ---
 
@@ -129,7 +138,7 @@ ShadowLedger Project (Apps Script)
 | Time Account | CC-CD | H hours, W hours |
 | Net Worth | CE-CJ | investment, house, mortgage, debt, TA, total |
 
-### API Response Format (v3)
+### API Response Format (Dashboard)
 
 ```json
 {
@@ -291,10 +300,10 @@ ShadowLedger Project (Apps Script)
 ### 1. Controls Bar
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│ View: [Simple|Detailed]  Year: [2026 ▼]  From: [Jan ▼]  To: [Mar ▼] │
-│                                                           [⟳ Refresh]│
-└─────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ View: [Simple|Detailed]  Expenses: [Collapsed|Expanded]                       │
+│ Year: [2026 ▼]  From: [Jan ▼]  To: [Mar ▼]                       [⟳ Refresh] │
+└───────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2. CMP Flow Section (Single-Month Only)
@@ -328,17 +337,40 @@ Income Sources ──▶ CMP ──▶ Outflows
 Gross Income ──▶ Deductions ──▶ Net Income ──▶ CMP ──▶ Outflows
 ```
 
+**Expense View: Collapsed (default)**
+```
+CMP ──▶ [Expenses €3,840]
+```
+
+**Expense View: Expanded**
+```
+CMP ──┬▶ [Childcare €1,200]
+      ├▶ [Groceries + Food €850]
+      ├▶ [Utilities €400]
+      ├▶ ... (17 categories)
+      └▶ [Other Expenses €45]  (< €10 categories combined)
+```
+
 ### 5. Interactive Elements
 
 | Element | Hover | Click |
 |---------|-------|-------|
 | Expenses Node | All 17 categories with actual/budget | Modal with progress bars |
+| Category Node (expanded) | Spent/Budget/Status for that category | Modal with full breakdown |
 | High-APR Debt Node | 5 debts with payment + balance | Modal with full details |
 | Low-APR Debt Node | Scalable + AK with payment + balance | Modal |
 | Fixed Loans Node | 5 loans with payment/mo | Modal with balances |
 | SAP Loan Node | Payment, balance, 0% rate | Modal with H/W split |
 | Mortgage Node | Payment, principal, interest | — |
 | Investment Node | Begin, OWNSAP, Excess, Growth, End | — |
+
+### 6. Loading States
+
+| State | Visual Feedback |
+|-------|-----------------|
+| Data refresh | Refresh button shows spinner, disabled |
+| Sankey render | Semi-transparent overlay with spinner |
+| Expense prefetch | "Loading expenses..." in status bar |
 
 ---
 
@@ -439,23 +471,110 @@ function doGet(e) {
 }
 ```
 
-### Pre-fetch Logic (index.html)
+### Category Colors (index.html)
+
+17 expense categories use a purple gradient for visual consistency:
 
 ```javascript
-let expenseCache = {};      // Cache by month key
-let currentExpenseData = null;  // Aggregated for current view
+const categoryColors = {
+  'Childcare': '#7c3aed',
+  'Family Support': '#8b5cf6',
+  'Groceries + Food': '#a78bfa',
+  'Utilities': '#6366f1',
+  'Car': '#818cf8',
+  'Shopping': '#c4b5fd',
+  'Travel & Leisure': '#4f46e5',
+  'Insurance': '#6d28d9',
+  'Eat Out & Food delivery': '#a855f7',
+  'Gifts': '#d946ef',
+  'Entertainment': '#e879f9',
+  'Health & beauty': '#f0abfc',
+  'Home improvement': '#c026d3',
+  'Business & Subscription': '#9333ea',
+  'Donation': '#7e22ce',
+  'Special IO': '#581c87',
+  'Buffer': '#4c1d95'
+};
+```
+
+### Expense Expanded View Logic
+
+Categories below **€10 minimum threshold** are grouped into "Other Expenses" node:
+
+```javascript
+const MIN_AMOUNT = 10;
+
+// Categories >= €10 get individual nodes
+currentExpenseData.categories
+  .filter(cat => cat.spent >= MIN_AMOUNT)
+  .forEach(cat => {
+    const idx = addNode(cat.name, getCategoryColor(cat.name), true, () => showExpenseModal());
+    nodes[idx].data = { spent: cat.spent, budget: cat.budget, percent: cat.percent, status: cat.status };
+    links.push({ source: cmpIdx, target: idx, value: cat.spent, color: getCategoryColor(cat.name) });
+  });
+
+// Categories < €10 combined into "Other Expenses"
+const smallTotal = currentExpenseData.categories
+  .filter(cat => cat.spent > 0 && cat.spent < MIN_AMOUNT)
+  .reduce((sum, cat) => sum + cat.spent, 0);
+
+if (smallTotal > 0) {
+  const idx = addNode('Other Expenses', colors.expenses, true, () => showExpenseModal());
+  links.push({ source: cmpIdx, target: idx, value: smallTotal, color: colors.expenses });
+}
+```
+
+### Loading State Functions
+
+```javascript
+function showLoadingOverlay() {
+  document.getElementById('loadingOverlay').classList.add('active');
+}
+
+function hideLoadingOverlay() {
+  document.getElementById('loadingOverlay').classList.remove('active');
+}
+
+function setRefreshButtonLoading(loading) {
+  const btn = document.getElementById('refreshBtn');
+  if (loading) {
+    btn.classList.add('btn-refreshing');
+    btn.disabled = true;
+  } else {
+    btn.classList.remove('btn-refreshing');
+    btn.disabled = false;
+  }
+}
+
+function showExpenseLoadingIndicator(show) {
+  const indicator = document.getElementById('expenseLoadingIndicator');
+  indicator.classList.toggle('hidden', !show);
+}
+```
+
+### Pre-fetch Logic
+
+```javascript
+let expenseCache = {};
+let currentExpenseData = null;
 
 async function prefetchExpenseData() {
+  showExpenseLoadingIndicator(true);
+  
   const months = [];
   for (let m = monthFrom; m <= monthTo; m++) {
     months.push(getMonthKey(currentYear, m));
   }
   
-  const results = await Promise.all(months.map(m => fetchExpenseData(m)));
-  currentExpenseData = aggregateExpenseData(results);
+  try {
+    const results = await Promise.all(months.map(m => fetchExpenseData(m)));
+    currentExpenseData = aggregateExpenseData(results);
+  } catch (err) {
+    currentExpenseData = null;
+  } finally {
+    showExpenseLoadingIndicator(false);
+  }
 }
-
-// Called on every render() to enable instant hover tooltips
 ```
 
 ### Total Outflow Calculation (Bug Fix)
@@ -540,7 +659,7 @@ const colors = {
 
 ```
 GitHub Pages:
-├── index.html              # Dashboard v3 UI (production)
+├── index.html              # Dashboard v3.1 UI (production)
 
 Google Sheet (ShadowLedger Project):
 ├── Code.gs                 # Main routing + ShadowLedger functions
@@ -585,6 +704,7 @@ Sheet Tabs:
 | 1.2 | Dec 2024 | Deployed to GitHub Pages |
 | 2.0 | Dec 2024 | Multi-month, Simple/Detailed views, Rich hover insights |
 | 3.0 | Dec 2024 | Integrated with ShadowLedger, 88-col v6.1 support, Expense/Debt modals, Pre-fetch, Bug fixes |
+| 3.1 | Dec 2024 | Loading states, Expense view toggle (Collapsed/Expanded), Category colors, €10 min threshold |
 
 ---
 
@@ -609,7 +729,8 @@ Sheet Tabs:
 | Reset API URL | Console: `localStorage.removeItem('sankey_api_url')` |
 | Expense data not loading | Check SL_Budget has multi-month schema with Month_Key column |
 | Double-counted outflow | Ensure using corrected calculation (excludes mort_int/mort_princ) |
+| Expanded view empty | Ensure expense prefetch completed; check API returns categories |
 
 ---
 
-*Blueprint v3.0.0 | Last Updated: 2025-12-28 16:45:00 (UTC+2)*
+*Blueprint v3.1.0 | Last Updated: 2025-12-28 23:55:00 (UTC+2)*
