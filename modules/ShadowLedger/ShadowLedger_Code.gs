@@ -1,7 +1,12 @@
 /**
  * ShadowLedger - Google Apps Script
- * Version: 2.1.0
+ * Version: 2.2.0
  * Date: 2025-12-28
+ * 
+ * Features v2.2 (Investment Tracking):
+ * 14. !invest command for logging transfers to investment accounts
+ * 15. !invest status command to see month's investment transfers
+ * 16. SL_Investment_Log sheet with destination tracking
  * 
  * Features v2.1 (Income Tracking):
  * 10. !income command for salary, youtube, other income
@@ -29,7 +34,8 @@ const CONFIG = {
     BUDGET: 'SL_Budget',
     PATTERNS: 'SL_Patterns',
     CONFIG: 'SL_Config',
-    INCOME_LOG: 'SL_Income_Log'  // NEW: Income tracking sheet
+    INCOME_LOG: 'SL_Income_Log',
+    INVESTMENT_LOG: 'SL_Investment_Log'  // NEW v2.2
   },
   TIMEZONE: 'Europe/Berlin',
   CATEGORIES: [
@@ -51,13 +57,15 @@ const CONFIG = {
     'Special IO',
     'Buffer'
   ],
-  // NEW: Income types configuration
+  // Income types (v2.1)
   INCOME_TYPES: {
     'salary': { column: 'net_salary', requiresSpender: true, label: 'Net Salary' },
     'youtube': { column: 'yt_gross', requiresSpender: false, label: 'YouTube Gross' },
     'other': { column: 'other_fam_net_inc', requiresSpender: false, label: 'Other Income' }
   },
-  REMINDER_DAYS: [1, 6, 11, 16, 21, 26]  // Days to send reminder
+  REMINDER_DAYS: [1, 6, 11, 16, 21, 26],
+  // NEW v2.2: Investment destinations
+  INVESTMENT_DESTINATIONS: ['scalable', 'revolut', 'comdirect', 'trade_republic', 'other']
 };
 
 // Feature #1: Extended spender aliases
@@ -107,21 +115,21 @@ function doGet(e) {
   if (action === 'test') {
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
-      message: 'ShadowLedger API v2.1.0 is running',
+      message: 'ShadowLedger API v2.2.0 is running',
       timestamp: new Date().toISOString(),
       endpoints: [
         '?action=dashboard - Financial data for Sankey',
         '?action=expenses&month=YYYY-MM - Expense breakdown',
         '?action=test - This health check'
       ],
-      features: ['expenses', 'income', 'ta_hours', 'reminders']
+      features: ['expenses', 'income', 'ta_hours', 'investments', 'reminders']
     })).setMimeType(ContentService.MimeType.JSON);
   }
   
   // Default response
   return ContentService.createTextOutput(JSON.stringify({
     success: true,
-    message: 'ShadowLedger API v2.1.0',
+    message: 'ShadowLedger API v2.2.0',
     hint: 'Use ?action=dashboard, ?action=expenses&month=YYYY-MM, or ?action=test'
   })).setMimeType(ContentService.MimeType.JSON);
 }
@@ -202,7 +210,7 @@ function handleCommand(message, username) {
   const cmd = parts[0];
   
   if (cmd === '!help') {
-    const helpText = `**ShadowLedger v2.1 Commands**
+    const helpText = `**ShadowLedger v2.2 Commands**
 
 📍 **Expense Logging (flexible format):**
 Any order works! Examples:
@@ -229,7 +237,7 @@ yesterday, today, tomorrow
 !week - This week's expenses
 !undo - Delete last transaction
 
-💰 **Income Commands (NEW):**
+💰 **Income Commands:**
 !income 4200 salary h - Log H net salary
 !income 3800 salary w - Log W net salary
 !income 1200 youtube - Log YT gross
@@ -239,6 +247,11 @@ yesterday, today, tomorrow
 ⏱️ **Time Account:**
 !ta 45 h - Log H hours added
 !ta 38 w - Log W hours added
+
+📈 **Investment Commands (NEW):**
+!invest 500 scalable - Log transfer
+!invest 1000 revolut ETF purchase
+!invest status - This month's transfers
 
 !help - Show this message`;
     sendDiscordMessage(helpText);
@@ -272,7 +285,7 @@ yesterday, today, tomorrow
     return handleUndo(username);
   }
   
-  // NEW: Income commands
+  // Income commands (v2.1)
   if (cmd === '!income') {
     if (parts.length >= 2 && parts[1] === 'status') {
       return getIncomeStatus();
@@ -280,16 +293,225 @@ yesterday, today, tomorrow
     return handleIncomeCommand(message, username);
   }
   
-  // NEW: Time Account command
+  // Time Account command (v2.1)
   if (cmd === '!ta') {
     return handleTACommand(message, username);
+  }
+  
+  // NEW v2.2: Investment commands
+  if (cmd === '!invest') {
+    if (parts.length >= 2 && parts[1] === 'status') {
+      return getInvestmentStatus();
+    }
+    return handleInvestCommand(message, username);
   }
   
   sendDiscordMessage('❌ Unknown command. Type !help for available commands.');
   return { success: false, error: 'Unknown command' };
 }
 
-// ============ NEW: INCOME LOGGING (v2.1) ============
+// ============ NEW v2.2: INVESTMENT LOGGING ============
+
+function handleInvestCommand(message, username) {
+  const parts = message.trim().split(/\s+/);
+  
+  if (parts.length < 3) {
+    sendDiscordMessage(`❌ **Format:** !invest [amount] [destination] [notes]
+
+**Destinations:** scalable, revolut, comdirect, trade_republic, other
+**Examples:**
+• !invest 500 scalable
+• !invest 1000 revolut ETF purchase
+• !invest 2000 comdirect monthly DCA`);
+    return { success: false, error: 'Invalid format' };
+  }
+  
+  // Extract amount
+  let amount = null;
+  let amountIndex = -1;
+  for (let i = 1; i < parts.length; i++) {
+    const num = parseFloat(parts[i].replace('€', '').replace(',', '.'));
+    if (!isNaN(num) && num > 0) {
+      amount = num;
+      amountIndex = i;
+      break;
+    }
+  }
+  
+  if (!amount) {
+    sendDiscordMessage('❌ Could not parse amount. Use: !invest 500 scalable');
+    return { success: false, error: 'No amount found' };
+  }
+  
+  // Extract destination
+  let destination = null;
+  let destIndex = -1;
+  for (let i = 1; i < parts.length; i++) {
+    const part = parts[i].toLowerCase();
+    // Check exact match or partial match
+    for (const dest of CONFIG.INVESTMENT_DESTINATIONS) {
+      if (part === dest || part.startsWith(dest.substring(0, 4))) {
+        destination = dest;
+        destIndex = i;
+        break;
+      }
+    }
+    if (destination) break;
+  }
+  
+  if (!destination) {
+    sendDiscordMessage(`❌ Unknown destination. Use: scalable, revolut, comdirect, trade_republic, or other`);
+    return { success: false, error: 'Unknown destination' };
+  }
+  
+  // Extract notes (remaining words)
+  const usedIndices = new Set([0, amountIndex, destIndex]);
+  const notesParts = parts.filter((_, i) => !usedIndices.has(i));
+  const notes = notesParts.join(' ');
+  
+  // Current month (not previous like income)
+  const now = new Date();
+  const monthKey = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM');
+  
+  const result = logInvestmentEntry(amount, destination, notes, monthKey, username);
+  
+  if (result.success) {
+    // Get month total
+    const monthTotal = getInvestmentMonthTotal(monthKey);
+    
+    sendDiscordMessage(`✅ **Investment Logged**
+━━━━━━━━━━━━━━━━━━━━━━━━━
+📈 €${amount.toFixed(2)} → ${capitalizeFirst(destination)}
+📅 Month: ${monthKey}
+📝 ${notes || '(no notes)'}
+━━━━━━━━━━━━━━━━━━━━━━━━━
+**${monthKey} Total Invested:** €${monthTotal.toFixed(2)}`);
+  }
+  
+  return result;
+}
+
+function logInvestmentEntry(amount, destination, notes, monthKey, inputter) {
+  try {
+    const sheet = getOrCreateInvestmentSheet();
+    const now = new Date();
+    const timestamp = Utilities.formatDate(now, CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss");
+    const dateStr = Utilities.formatDate(now, CONFIG.TIMEZONE, "yyyy-MM-dd");
+    const entryId = `INV-${Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyyMMdd-HHmmss')}`;
+    
+    // Always append (don't update like income - each transfer is unique)
+    sheet.appendRow([entryId, dateStr, monthKey, amount, destination, notes, timestamp, inputter]);
+    
+    return { success: true };
+  } catch (e) {
+    sendDiscordMessage('❌ Error logging investment: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
+
+function getInvestmentStatus(monthKeyOverride) {
+  const now = new Date();
+  const monthKey = monthKeyOverride || Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM');
+  
+  const sheet = getOrCreateInvestmentSheet();
+  const data = sheet.getDataRange().getValues();
+  
+  // Group by destination
+  const byDestination = {};
+  let totalAmount = 0;
+  let transferCount = 0;
+  const transfers = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][2] === monthKey) {
+      const date = data[i][1];
+      const amount = data[i][3];
+      const destination = data[i][4];
+      const notes = data[i][5];
+      
+      if (!byDestination[destination]) {
+        byDestination[destination] = 0;
+      }
+      byDestination[destination] += amount;
+      totalAmount += amount;
+      transferCount++;
+      
+      // Format date for display
+      const dateDisplay = typeof date === 'string' ? date.substring(5) : Utilities.formatDate(new Date(date), CONFIG.TIMEZONE, 'MM-dd');
+      transfers.push({ date: dateDisplay, amount, destination, notes });
+    }
+  }
+  
+  let response = `📈 **Investment Status for ${monthKey}**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+`;
+
+  if (transferCount === 0) {
+    response += `No investments logged this month yet.
+
+**Log a transfer:**
+• !invest 500 scalable
+• !invest 1000 revolut ETF purchase`;
+  } else {
+    // List by destination
+    response += `**By Destination:**\n`;
+    for (const [dest, amt] of Object.entries(byDestination).sort((a, b) => b[1] - a[1])) {
+      response += `• ${capitalizeFirst(dest)}: €${amt.toFixed(2)}\n`;
+    }
+    
+    response += `\n**Recent Transfers:**\n`;
+    // Show last 5 transfers
+    const recentTransfers = transfers.slice(-5).reverse();
+    for (const t of recentTransfers) {
+      const notesStr = t.notes ? ` - ${t.notes.substring(0, 20)}` : '';
+      response += `• ${t.date}: €${t.amount.toFixed(2)} → ${capitalizeFirst(t.destination)}${notesStr}\n`;
+    }
+    
+    response += `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Total:** €${totalAmount.toFixed(2)} (${transferCount} transfers)`;
+  }
+  
+  sendDiscordMessage(response);
+  return { success: true, total: totalAmount, count: transferCount };
+}
+
+function getInvestmentMonthTotal(monthKey) {
+  const sheet = getOrCreateInvestmentSheet();
+  const data = sheet.getDataRange().getValues();
+  
+  let total = 0;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][2] === monthKey) {
+      total += data[i][3] || 0;
+    }
+  }
+  
+  return total;
+}
+
+function getOrCreateInvestmentSheet() {
+  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(CONFIG.SHEETS.INVESTMENT_LOG);
+  
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.SHEETS.INVESTMENT_LOG);
+    sheet.appendRow(['ID', 'Date', 'MonthKey', 'Amount', 'Destination', 'Notes', 'Timestamp', 'InputBy']);
+    sheet.getRange(1, 1, 1, 8).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+    Logger.log('Created SL_Investment_Log sheet');
+  }
+  
+  return sheet;
+}
+
+function capitalizeFirst(str) {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1).replace('_', ' ');
+}
+
+// ============ INCOME LOGGING (v2.1) ============
 
 function handleIncomeCommand(message, username) {
   const parts = message.trim().split(/\s+/);
@@ -430,7 +652,7 @@ function logIncomeEntry(type, amount, spender, description, monthKey, inputter) 
   }
 }
 
-// ============ NEW: TIME ACCOUNT LOGGING (v2.1) ============
+// ============ TIME ACCOUNT LOGGING (v2.1) ============
 
 function handleTACommand(message, username) {
   const parts = message.trim().split(/\s+/);
@@ -528,7 +750,7 @@ function logTAEntry(type, hours, spender, monthKey, inputter) {
   }
 }
 
-// ============ NEW: INCOME STATUS CHECK (v2.1) ============
+// ============ INCOME STATUS CHECK (v2.1) ============
 
 function getIncomeStatus(monthKeyOverride) {
   const now = new Date();
@@ -631,12 +853,8 @@ function getIncomeStatus(monthKeyOverride) {
   return { success: true, complete: allComplete, entered: entered };
 }
 
-// ============ NEW: MONTHLY REMINDER TRIGGER (v2.1) ============
+// ============ MONTHLY REMINDER TRIGGER (v2.1) ============
 
-/**
- * Set up this function as a daily time-driven trigger at 8:00 AM
- * Triggers → Add Trigger → checkAndSendIncomeReminder → Time-driven → Day timer → 8am to 9am
- */
 function checkAndSendIncomeReminder() {
   const now = new Date();
   const dayOfMonth = now.getDate();
@@ -706,7 +924,7 @@ Use **!income status** for full details`;
   Logger.log('Sent income reminder for ' + monthKey);
 }
 
-// ============ HELPER: CREATE INCOME SHEET IF NEEDED ============
+// ============ HELPER: CREATE SHEETS IF NEEDED ============
 
 function getOrCreateIncomeSheet() {
   const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
@@ -1703,24 +1921,18 @@ function countTransactionsInMonth(ledgerData, monthStart, monthEnd) {
 function testExpenseBreakdown() {
   const now = new Date();
   const month = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM');
-  
   const result = getExpenseBreakdown(month);
   const content = result.getContent();
   const data = JSON.parse(content);
-  
-  Logger.log('Test month: ' + month);
-  Logger.log('Success: ' + data.success);
-  Logger.log('Categories: ' + data.categories.length);
-  Logger.log('Total Spent: €' + data.summary.total_spent);
-  Logger.log('Budget Available: ' + data.summary.budget_available);
-  
-  Logger.log('\nTop 3 Categories:');
-  data.categories.slice(0, 3).forEach(cat => {
-    Logger.log(`  ${cat.name}: €${cat.spent} / €${cat.budget || 'N/A'} (${cat.percent || 'N/A'}%)`);
-  });
+  Logger.log('Test: ' + JSON.stringify(data.summary));
 }
 
 function testIncomeStatus() {
-  const result = getIncomeStatus();
+  getIncomeStatus();
   Logger.log('Income status test complete');
+}
+
+function testInvestmentStatus() {
+  getInvestmentStatus();
+  Logger.log('Investment status test complete');
 }

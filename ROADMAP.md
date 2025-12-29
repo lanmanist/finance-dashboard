@@ -1,14 +1,14 @@
 # Aaron Family Finance System - Roadmap
 
-**Version:** 2.0  
-**Last Updated:** December 23, 2025  
+**Version:** 3.0  
+**Last Updated:** December 29, 2025  
 **Status:** Active Development
 
 ---
 
 ## OVERVIEW
 
-This roadmap consolidates planned features across all modules plus system-wide improvements.
+This roadmap consolidates planned features across all modules plus system-wide improvements. Updated to reflect v2.2.0 (ShadowLedger), v3.1 (Dashboard), and v6.1 (StandardFinance) completion.
 
 ### Priority Legend
 - 🔴 **Critical** - Do immediately
@@ -27,203 +27,244 @@ This roadmap consolidates planned features across all modules plus system-wide i
 
 ## RECENTLY COMPLETED ✅
 
-| Date | Module | Feature |
-|------|--------|---------|
-| Dec 2025 | ShadowLedger | v2.0 Full MVP (all 9 features) |
-| Dec 2025 | ShadowLedger | Cloudflare + Render.com migration |
-| Dec 2025 | ShadowLedger | Timezone-aware timestamps (UTC+1) |
-| Dec 2025 | Dashboard | v2.0 Multi-month, detailed views |
-| Dec 2025 | StandardFinance | v6.1 with 87 columns |
-| Dec 2025 | **Integration** | ShadowLedger → Exp_Alloc SUMIFS link |
-| Dec 2025 | **Docs** | Documentation restructure & naming convention |
+### December 2025 Achievements
 
-### ShadowLedger v2.0 Features Complete
+| Date | Module | Feature | Version |
+|------|--------|---------|---------|
+| Dec 28 | ShadowLedger | Investment tracking (!invest, !invest status) | v2.2.0 |
+| Dec 28 | ShadowLedger | SL_Investment_Log sheet with destinations | v2.2.0 |
+| Dec 28 | Dashboard | Expanded expense view with 17 categories | v3.1 |
+| Dec 28 | Dashboard | Loading overlay and refresh spinner | v3.1 |
+| Dec 28 | Dashboard | Category color scheme (purple gradient) | v3.1 |
+| Dec 27 | ShadowLedger | Income tracking (!income, !ta commands) | v2.1.0 |
+| Dec 27 | ShadowLedger | Automated income reminders | v2.1.0 |
+| Dec 27 | ShadowLedger | SL_Income_Log sheet | v2.1.0 |
+| Dec 26 | Dashboard | Expense click modal with budget bars | v3.0 |
+| Dec 26 | Dashboard | Debt detail modals (High-APR, Low-APR, Fixed, SAP) | v3.0 |
+| Dec 26 | Dashboard | 88-column v6.1 model support | v3.0 |
+| Dec 25 | **Integration** | ShadowLedger → Exp_Alloc SUMIFS link | - |
+| Dec 25 | **Integration** | SL_Income_Log → Monthly_Model VLOOKUP | - |
+| Dec 24 | ShadowLedger | Cloudflare + Render.com migration | v2.0 |
+| Dec 23 | StandardFinance | v6.1 with 88 columns | v6.1 |
+| Dec 22 | ShadowLedger | v2.0 Full MVP (9 features) | v2.0 |
 
-| # | Feature | Status | Notes |
-|---|---------|--------|-------|
-| 1 | Extended Spender Aliases | ✅ | h/w/husband/wife/nha/anh/aaron/trang/chang/em |
-| 2 | Multi-Transaction per Message | ✅ | Line break detection, batch processing |
-| 3 | Enhanced !status with % | ✅ | Monospace table, color-coded |
-| 4 | !ytd Command | ✅ | Year-to-date spending table |
-| 5 | Smart Flexible Input Parsing | ✅ | Gemini AI + regex fallback |
-| 6 | Enhanced Date Parsing | ✅ | yesterday, DD.MM, natural language |
-| 7 | Gemini AI Categorization | ✅ | Optional API key, pattern fallback |
-| 8 | !budgetleft Command | ✅ | Remaining budget table |
-| 9 | !undo Command | ✅ | 10-min window, confirmation step |
+---
+
+## FEATURE COMPLETION SUMMARY
+
+### ShadowLedger v2.2.0 (16 Features Complete)
+
+| # | Feature | Version | Status |
+|---|---------|---------|--------|
+| 1 | Extended spender aliases (h/w/husband/wife/nha/anh/aaron/trang/chang/em) | v2.0 | ✅ |
+| 2 | Multi-transaction per message (batch logging) | v2.0 | ✅ |
+| 3 | Enhanced !status with percentages | v2.0 | ✅ |
+| 4 | !ytd command (year-to-date) | v2.0 | ✅ |
+| 5 | Smart flexible input parsing (Gemini AI) | v2.0 | ✅ |
+| 6 | Enhanced date parsing (yesterday, DD.MM, natural language) | v2.0 | ✅ |
+| 7 | Gemini AI categorization fallback | v2.0 | ✅ |
+| 8 | !budgetleft command | v2.0 | ✅ |
+| 9 | !undo command with confirmation | v2.0 | ✅ |
+| 10 | !income command (salary, youtube, other) | v2.1 | ✅ |
+| 11 | !ta command (Time Account hours) | v2.1 | ✅ |
+| 12 | !income status command | v2.1 | ✅ |
+| 13 | Automated monthly income reminders | v2.1 | ✅ |
+| 14 | !invest command for transfers | v2.2 | ✅ |
+| 15 | !invest status command | v2.2 | ✅ |
+| 16 | SL_Investment_Log with destinations | v2.2 | ✅ |
+
+### Dashboard v3.1.0 (All v1-v3 Features Complete)
+
+| Feature | Version | Status |
+|---------|---------|--------|
+| Single month view | v1.0 | ✅ |
+| Full year aggregated view | v1.0 | ✅ |
+| Live data from Google Sheets | v1.0 | ✅ |
+| Month type badges | v1.0 | ✅ |
+| Basic stat cards | v1.0 | ✅ |
+| Interactive Sankey | v1.0 | ✅ |
+| Multi-month range selection | v2.0 | ✅ |
+| Simple/Detailed view toggle | v2.0 | ✅ |
+| Enhanced stat card labels | v2.0 | ✅ |
+| Rich hover insights | v2.0 | ✅ |
+| API integration with ShadowLedger | v3.0 | ✅ |
+| 88-column v6.1 model support | v3.0 | ✅ |
+| Expense click modal | v3.0 | ✅ |
+| Debt click modals | v3.0 | ✅ |
+| Pre-fetch expense data | v3.0 | ✅ |
+| Loading overlay | v3.1 | ✅ |
+| Refresh button feedback | v3.1 | ✅ |
+| Expense view toggle (Collapsed/Expanded) | v3.1 | ✅ |
+| Category color scheme | v3.1 | ✅ |
+
+### StandardFinance v6.1 (Complete)
+
+| Feature | Status |
+|---------|--------|
+| 204-month simulation (Jan 2026 - Dec 2042) | ✅ |
+| 88-column model | ✅ |
+| POT system architecture | ✅ |
+| Sondertilgung logic (€21,550/year) | ✅ |
+| Salary_Schedule with modifiers | ✅ |
+| Balloon payment Jul 2033 | ✅ |
+| ShadowLedger expense integration | ✅ |
+| Income log integration | ✅ |
 
 ---
 
 ## MODULE: SHADOWSLEDGER
 
-### 🟠 High Priority
+### 🟠 High Priority (Q1 2026)
 
-| # | Feature | Status | Effort | Impact | Cost |
-|---|---------|--------|--------|--------|------|
-| 10 | **Pattern Learning** | 📋 | 5-6h | Reduces AI calls 80%+ | €0 |
-| 12 | **Category Recategorization** | 📋 | 3-4h | Fix AI mistakes easily | €0 |
-| 13 | **Daily Summary** | 📋 | 3-4h | Proactive awareness | €0 |
+| # | Feature | Status | Effort | Impact | Cost | Notes |
+|---|---------|--------|--------|--------|------|-------|
+| 17 | **Pattern Learning** | 📋 | 5-6h | High | €0 | Auto-suggest after 5+ consistent categorizations |
+| 18 | **Category Recategorization** | 📋 | 3-4h | Medium | €0 | `!recategorize last groceries` |
+| 19 | **Daily Summary (21:00 CET)** | 📋 | 3-4h | High | €0 | Time-triggered summary post |
+| 20 | **!month Command** | 📋 | 2h | Medium | €0 | View specific month summary |
 
-#### Feature 10: Pattern Learning
-**Description:** Auto-suggest patterns after 5+ consistent categorizations
-
+#### Feature 17: Pattern Learning
+**Problem:** Users repeatedly categorize same merchants; AI calls cost latency.  
+**Solution:** Track merchant frequency; suggest pattern after 5+ consistent categorizations.  
 **Implementation:**
-- Track merchant frequency in transactions
-- When merchant appears 5+ times with >80% category consistency
-- Suggest pattern via Discord message
-- Command: `!addpattern [merchant] [category]` to confirm
-- Add approved patterns to SL_Patterns sheet
+- Query ShadowLedger for merchants with 5+ occurrences
+- Calculate category consistency (>80% = suggest)
+- Post suggestion via Discord: "Reply `!addpattern [merchant] [category]` to confirm"
+- Add confirmed patterns to SL_Patterns
 
-**User Experience:**
-```
-💡 Pattern Suggestion
-────────────────────────────────
-Merchant: "cafe_latte"
-Appears: 7 times
-Category: "Eat Out & Food delivery" (86% confidence)
+**Success Metrics:**
+- Reduce AI categorization calls by 50%+
+- User approval rate >90%
+- Pattern growth: +10/month average
 
-Reply !addpattern cafe_latte eat to create this pattern
-────────────────────────────────
-```
-
-**Success Criteria:**
-- Auto-detects 5+ repeat merchants
-- Calculates confidence >80%
-- User can approve/reject suggestions
-- Approved patterns added to SL_Patterns
+**Considerations:**
+- Need to handle merchant name variations (rewe vs REWE vs Rewe Markt)
+- Should store suggestion history to avoid re-suggesting rejected patterns
+- Could implement auto-approval after 10+ consistent categorizations
 
 ---
 
-#### Feature 12: Category Recategorization
-**Description:** Fix transaction categories after logging
+#### Feature 18: Category Recategorization
+**Problem:** AI sometimes miscategorizes; users want to fix without undo/redo.  
+**Solution:** `!recategorize [txn_id|last] [new_category]`
 
-**Commands:**
-- `!recategorize [txn_id] [new_category]`
-- `!recategorize last [new_category]`
+**Implementation:**
+- Parse transaction ID or "last" keyword
+- Validate new category against CATEGORIES array
+- Update ShadowLedger sheet row
+- Recalculate budget status
+- Post confirmation with updated budgets
 
 **User Experience:**
 ```
+!recategorize last groceries
 ✅ Recategorized
-────────────────────────────────
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Transaction: €45.00 - Rewe
-Old: Shopping
-New: Groceries + Food
-
-📊 Updated Budget:
-🟢 Groceries + Food: €320/€600 (53%)
-🟢 Shopping: €100/€400 (25%)
-────────────────────────────────
+Old: Shopping → New: Groceries + Food
+Budget updated: 🟢 Groceries: €320/€600 (53%)
 ```
 
 ---
 
-#### Feature 13: Scheduled Daily Summary
-**Description:** Auto-post at 21:00 CET daily
+#### Feature 19: Daily Summary
+**Problem:** No proactive spending awareness; users must remember to check.  
+**Solution:** Automated 21:00 CET daily summary post.
 
 **Implementation:**
-- Apps Script time-driven trigger (21:00 CET)
-- Calculate: Today's total, top 3 categories, budget status
-- Post to Discord #expenses channel
+- Apps Script time-driven trigger
+- Calculate: today's total, top categories, budget status
+- Compare to daily average (budget / days in month)
+- Post to Discord #expenses
 
-**User Experience:**
+**Output Format:**
 ```
-📅 Daily Summary (2025-12-17)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Today's Spending: €127.50
-Transactions: 7
+📅 Daily Summary (2025-12-29)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Today: €127.50 (7 transactions)
+Daily Target: €132.58
 
 Top Categories:
-🟢 Groceries + Food: €67.50
+🟢 Groceries: €67.50
 🟡 Eat Out: €45.00
 🟢 Shopping: €15.00
 
-Month Progress:
-Day 17/31 (55%)
-Spent: €2,450/€4,090 (60%)
-
-Status: ✅ On track
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Month Progress: Day 29/31 (94%)
+Spent: €3,890/€4,110 (95%)
+Status: ⚠️ Slightly over pace
 ```
+
+**Considerations:**
+- Skip posting if €0 spent (or make configurable)
+- Different formats for weekdays vs weekends?
+- Could add weekly streak tracking
 
 ---
 
-### 🟡 Medium Priority
+### 🟡 Medium Priority (Q2 2026)
 
-| # | Feature | Status | Effort | Impact | Cost |
-|---|---------|--------|--------|--------|------|
-| 11 | Historical Data Import | 📋 | 3-4h | Complete history | €0 |
-| 14 | Weekly Summary | 📋 | 2-3h | Weekly review | €0 |
-| 17 | Full Date Support | 📋 | 2-3h | Flexibility | €0 |
-| 16 | !month Command | 📋 | 2h | Quick review | €0 |
-| 18 | Budget Adjustment | 📋 | 2-3h | Easy changes | €0 |
-| 19 | Recurring Expense Detection | 📋 | 6-8h | Subscription alerts | €0 |
+| # | Feature | Status | Effort | Impact | Cost | Notes |
+|---|---------|--------|--------|--------|------|-------|
+| 21 | **Weekly Summary (Sunday 20:00)** | 📋 | 2-3h | Medium | €0 | Week comparison |
+| 22 | **Historical Data Import** | 📋 | 3-4h | High | €0 | CSV upload for past expenses |
+| 23 | **Budget Adjustment Commands** | 📋 | 4-5h | Medium | €0 | `!budget groceries 700` |
+| 24 | **Full Date Support** | 📋 | 2-3h | Low | €0 | `45 rewe 2025-12-15` |
+| 25 | **Recurring Detection** | 📋 | 6-8h | Medium | €0 | Auto-detect subscriptions |
 
-#### Feature 11: Historical Data Import
-**Description:** Bulk import historical expenses from CSV
+#### Feature 22: Historical Data Import
+**Problem:** New system has no history; difficult to compare YoY.  
+**Solution:** CSV import command with validation.
 
-**Commands:**
-- `!import [google_drive_file_id]`
-- `!import confirm`
+**Format:** `date,amount,merchant,category,spender`
 
-**CSV Format:** `date,amount,merchant,category,spender`
+**Implementation:**
+- User uploads CSV to Google Drive
+- `!import [file_id]` triggers preview
+- `!import confirm` executes import
+- Duplicate detection by date+amount+merchant
 
-**User Experience:**
-```
-📊 Import Preview
-────────────────────────────────
-File: expenses_2024.csv
-Rows: 247
-Date Range: 2024-01-01 to 2024-12-31
-Duplicates: 3 (will skip)
-
-Reply !import confirm to proceed
-────────────────────────────────
-
-After confirmation:
-✅ Imported 244 transactions
-❌ Skipped 3 duplicates
-```
+**Considerations:**
+- Max import size (1000 rows?)
+- Handle date format variations
+- Generate txn_ids for imported rows
+- Should not trigger budget recalculation per row (batch)
 
 ---
 
-#### Feature 14: Scheduled Weekly Summary
-**Description:** Auto-post Sunday 20:00 CET
+### 🟢 Future Features (2026+)
 
-**User Experience:**
-```
-📊 Weekly Summary (Dec 11-17)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Total: €487.50 (7 days)
-Avg/day: €69.64
-Transactions: 34
+| # | Feature | Status | Effort | Cost/Month | Impact | Considerations |
+|---|---------|--------|--------|------------|--------|----------------|
+| 26 | **Receipt OCR** | 💡 | 8-10h | €5-10 | High | Photo → auto-parse amount/merchant |
+| 27 | **Voice Input** | 💡 | 8-10h | €5-10 | Medium | Voice note → transaction |
+| 28 | **Analytics Dashboard** | 💡 | 6-8h | €0 | Medium | Spending charts, trends |
+| 29 | **Bank API Integration** | 💡 | 15-20h | Varies | Very High | Auto-import from N26/Revolut |
+| 30 | **Email Receipt Parsing** | 💡 | 10-12h | €0 | Medium | Parse Amazon/PayPal receipts |
+| 31 | **Budget Forecasting** | 💡 | 8-10h | €0 | Medium | ML-based end-of-month prediction |
+| 32 | **Multi-Currency** | 💡 | 6-8h | €0 | Low | EUR/USD/SEK conversion |
+| 33 | **Shared Family View** | 💡 | 6-8h | €0 | Low | Web dashboard for non-Discord users |
 
-Daily Breakdown:
-Mon: €45.00 (3)
-Tue: €67.50 (5)
-Wed: €89.00 (6)
-...
+#### Feature 26: Receipt OCR - Deep Dive
+**Tech Options:**
+1. **Google Cloud Vision** - €1.50/1000 images, high accuracy
+2. **Tesseract (self-hosted)** - Free, moderate accuracy
+3. **Gemini Vision** - Free tier exists, good accuracy
 
-Top Merchants:
-1. Rewe: €127.50 (8 visits)
-2. Lidl: €89.00 (5 visits)
-3. Lieferando: €67.50 (3 visits)
+**Implementation Path:**
+1. User sends image to Discord
+2. Bot detects attachment, uploads to Cloud Vision/Gemini
+3. Extract: total amount, merchant name, date
+4. Auto-fill expense form, ask for confirmation
 
-Budget Status: 🟢 60% used
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+**Challenges:**
+- German receipt formats vary widely
+- Handling partial/blurry images
+- Multiple items on one receipt (grocery vs individual)
 
----
-
-### 🟢 Future Features
-
-| # | Feature | Status | Effort | Cost | Notes |
-|---|---------|--------|--------|------|-------|
-| 15 | Receipt OCR | 💡 | 8-10h | €5-10/mo | Photo → transaction |
-| 20 | Voice Input | 💡 | 8-10h | €5-10/mo | Voice note → transaction |
-| 21 | Analytics Dashboard | 💡 | 6-8h | €0 | Spending visualizations |
-| 23 | Bank API Integration | 💡 | 15-20h | Varies | Auto-import from N26/Revolut |
-| 24 | Email Receipt Parsing | 💡 | 10-12h | €0 | Parse Amazon/PayPal receipts |
-| 25 | Budget Forecasting | 💡 | 8-10h | €0 | Predict end-of-month totals |
-| 26 | Shared Family View | 💡 | 6-8h | €0 | Web dashboard for non-Discord |
+**ROI Analysis:**
+- Time saved: ~30 sec/receipt × 5 receipts/week = 2.5 min/week
+- Cost: ~€5/month for moderate usage
+- Verdict: Nice-to-have, not critical
 
 ---
 
@@ -231,80 +272,187 @@ Budget Status: 🟢 60% used
 
 | Issue | Priority | Effort | Notes |
 |-------|----------|--------|-------|
-| Fix !ytd to use txn_date instead of month_key | 🟠 High | 30min | Currently filters wrong column |
-| Pro-rate current month in !ytd budget | 🟡 Medium | 30min | Shows full month budget mid-month |
-| Cache patterns/budget in ScriptProperties | 🟡 Medium | 3-4h | Reduce sheet reads 80% |
-| Add retry logic for transient failures | 🟡 Medium | 2h | Exponential backoff |
-| Code modularization | 🟢 Low | 8-10h | Split into logical modules |
+| Cache patterns in ScriptProperties | 🟠 High | 3-4h | Currently reads full sheet each time |
+| Add retry logic with exponential backoff | 🟠 High | 2h | Handle transient failures |
+| Code modularization | 🟡 Medium | 8-10h | Split into logical modules |
 | Unit test coverage | 🟢 Low | 6-8h | Apps Script test framework |
+| Rate limiting protection | 🟡 Medium | 2h | Prevent Discord spam attacks |
 
 ---
 
 ## MODULE: STANDARDFINANCE
 
-### 🔴 Critical
-
-| Feature | Status | Effort | Impact |
-|---------|--------|--------|--------|
-| **Column Sync with Dashboard** | 📋 | 2-3h | Fix data mismatch (77→87 cols) |
-
 ### 🟠 High Priority
 
-| Feature | Status | Effort | Impact |
-|---------|--------|--------|--------|
-| Validation Row | 📋 | 2-3h | Sum checks, balance validations |
-| Named Ranges | 📋 | 4-6h | Replace column letters with names |
-| Actuals Tracking | 📋 | 4-6h | Separate columns for plan vs actual |
+| Feature | Status | Effort | Impact | Notes |
+|---------|--------|--------|--------|-------|
+| **Validation Row** | 📋 | 2-3h | High | Sum checks, balance validations |
+| **Named Ranges** | 📋 | 4-6h | High | Replace column letters (CMP_End vs AN) |
+| **Actuals Column Overlay** | 📋 | 4-6h | High | Separate plan vs actual tracking |
+
+#### Named Ranges - Implementation Plan
+**Problem:** Code references `col[87]`; breaks when columns shift.  
+**Solution:** Define named ranges in Google Sheets.
+
+**Key Ranges to Define:**
+```
+CMP_End         = Monthly_Model_v4!$AN$2:$AN$205
+Exp_Alloc       = Monthly_Model_v4!$BQ$2:$BQ$205
+Inv_End         = Monthly_Model_v4!$BV$2:$BV$205
+Net_Worth       = Monthly_Model_v4!$CJ$2:$CJ$205
+Mort_End        = Monthly_Model_v4!$AT$2:$AT$205
+```
+
+**Migration Steps:**
+1. Define ranges in Google Sheets (Data → Named Ranges)
+2. Update getDashboardData() to use INDIRECT()
+3. Update formulas to reference ranges
+4. Test thoroughly before deploying
+
+---
 
 ### 🟡 Medium Priority
 
-| Feature | Status | Effort | Impact |
-|---------|--------|--------|--------|
-| Scenario Modeling | 📋 | 6-8h | What-if analysis sheets |
-| Tax Calculation Helper | 📋 | 4-6h | Annual tax estimate |
-| Inflation Adjustment | 📋 | 2h | Auto-update SL_Budget annually |
+| Feature | Status | Effort | Impact | Notes |
+|---------|--------|--------|--------|-------|
+| **Scenario Modeling** | 📋 | 6-8h | High | What-if analysis sheets |
+| **Tax Calculation Helper** | 📋 | 4-6h | Medium | Annual tax estimate |
+| **Inflation Adjustment Automation** | 📋 | 2h | Medium | Auto-update SL_Budget annually |
+| **Variance Report Generator** | 📋 | 4-5h | High | Actual vs projected monthly |
 
 ### 🟢 Future
 
-| Feature | Status | Effort |
-|---------|--------|--------|
-| Multi-currency Support | 💡 | 6-8h |
-| Retirement Projections | 💡 | 8-12h |
+| Feature | Status | Effort | Notes |
+|---------|--------|--------|-------|
+| Multi-currency Support | 💡 | 6-8h | EUR/USD/SEK |
+| Retirement Projections | 💡 | 8-12h | Post-2042 modeling |
+| Monte Carlo Simulation | 💡 | 10-15h | Probability-based outcomes |
 
 ---
 
 ## MODULE: DASHBOARD
 
-### 🔴 Critical
-
-| Feature | Status | Effort | Impact |
-|---------|--------|--------|--------|
-| **Fix Column Mapping** | 📋 | 2-3h | Update COL object for 87 columns |
-
 ### 🟠 High Priority
 
-| Feature | Status | Effort | Impact |
-|---------|--------|--------|--------|
-| Expense Category Breakdown | 📋 | 4-6h | Show ShadowLedger categories in Sankey |
-| Loading States | 📋 | 2h | Better UX during data fetch |
-| Error Boundaries | 📋 | 2h | Graceful failure handling |
+| Feature | Status | Effort | Impact | Notes |
+|---------|--------|--------|--------|-------|
+| **Mobile Optimization** | 📋 | 4-6h | High | Touch interactions, responsive |
+| **Historical Trend Charts** | 📋 | 4-6h | High | Net worth over time line chart |
+| **Error Boundaries** | 📋 | 2h | Medium | Graceful failure handling |
 
 ### 🟡 Medium Priority
 
-| Feature | Status | Effort | Impact |
-|---------|--------|--------|--------|
-| Mobile Optimization | 📋 | 4-6h | Better touch interactions |
-| Scenario Comparison | 📋 | 6-8h | Side-by-side what-if |
-| Historical Trend Charts | 📋 | 4-6h | Net worth over time |
-| Export to PDF | 📋 | 3-4h | Download current view |
+| Feature | Status | Effort | Impact | Notes |
+|---------|--------|--------|--------|-------|
+| **Scenario Comparison** | 📋 | 6-8h | Medium | Side-by-side what-if |
+| **Export to PDF** | 📋 | 3-4h | Medium | Download current view |
+| **Investment Performance** | 📋 | 4-5h | Medium | Portfolio breakdown chart |
+| **Debt Payoff Timeline** | 📋 | 3-4h | Medium | Visual debt freedom countdown |
 
 ### 🟢 Future
 
-| Feature | Status | Effort |
-|---------|--------|--------|
-| PWA Support | 💡 | 4-6h |
-| Offline Mode | 💡 | 6-8h |
-| Push Notifications | 💡 | 4-6h |
+| Feature | Status | Effort | Notes |
+|---------|--------|--------|-------|
+| PWA Support | 💡 | 4-6h | Installable app |
+| Offline Mode | 💡 | 6-8h | Cache last data |
+| Push Notifications | 💡 | 4-6h | Budget alerts |
+| Dark/Light Theme Toggle | 💡 | 2h | User preference |
+
+---
+
+## MODULE: OPERATIONS
+
+### 🟠 High Priority
+
+| Feature | Status | Effort | Impact | Notes |
+|---------|--------|--------|--------|-------|
+| **Automated Backup** | 📋 | 2-3h | High | Daily snapshot to Google Drive |
+| **Health Check Dashboard** | 📋 | 4-6h | High | System status at-a-glance |
+| **Reconciliation Checklist Automation** | 📋 | 3-4h | Medium | Auto-track completion |
+
+---
+
+## NEW MODULES (PROPOSED)
+
+### 🟠 Goals Tracker Module
+
+**Purpose:** Visual milestones (debt-free date, €1M net worth, etc.)  
+**Effort:** 8-12h  
+**Cost:** €0  
+**Priority:** High
+
+**Features:**
+- Define goals with target dates/amounts
+- Progress visualization (progress bars, milestone markers)
+- Celebration notifications when achieved
+- Integration with Dashboard
+
+**Implementation:**
+1. New sheet: `Goals` (Name, Target, Current, Deadline, Type)
+2. Apps Script function to calculate progress
+3. Dashboard widget showing top 3 goals
+4. Discord notifications on milestone achievement
+
+**Example Goals:**
+- High-APR Debt Free: Target €0, Current €15,040, Deadline Mar 2026
+- Emergency Fund: Target €15,000, Current €5,000
+- €1M Net Worth: Target €1,000,000, Deadline 2035
+
+---
+
+### 🟡 Variance Report Module
+
+**Purpose:** Monthly actual vs planned analysis  
+**Effort:** 6-8h  
+**Cost:** €0  
+**Priority:** Medium
+
+**Features:**
+- Auto-generate comparison report
+- Highlight significant variances (>10%)
+- Trend analysis over time
+- Export to PDF
+
+**Implementation:**
+1. New sheet: `Variance_Reports` (Month, Category, Planned, Actual, Variance%, Note)
+2. Time-triggered generation (1st of each month)
+3. Discord post with summary
+4. Dashboard page for detailed view
+
+---
+
+### 🟡 Tax Preparation Module
+
+**Purpose:** Annual tax calculation helper  
+**Effort:** 15-20h  
+**Cost:** €0  
+**Priority:** Medium
+
+**Features:**
+- Track deductible expenses
+- Calculate estimated tax liability
+- YT income tax reserve tracking
+- Export-ready summary for Steuerberater
+
+**Considerations:**
+- German tax complexity (Progressionsvorbehalt, etc.)
+- Integration with existing YT_TaxRes column
+- Category tagging for deductibility
+
+---
+
+### 🟢 Family Finance Education Module
+
+**Purpose:** Gamify savings for teaching son (AK)  
+**Effort:** 10-15h  
+**Cost:** €0  
+**Priority:** Low
+
+**Features:**
+- Simple goals with visual rewards
+- Age-appropriate explanations
+- Allowance tracking
+- Savings challenges
 
 ---
 
@@ -312,84 +460,52 @@ Budget Status: 🟢 60% used
 
 ### 🟠 High Priority
 
-| Feature | Status | Effort | Impact |
-|---------|--------|--------|--------|
-| Delete Obsolete Files | 📋 | 30min | Remove v4 files |
-| Unified API Versioning | 📋 | 4-6h | `/api/v1/` prefix |
+| Feature | Status | Effort | Impact | Notes |
+|---------|--------|--------|--------|-------|
+| **Documentation Consolidation** | ✅ | 4h | High | Completed Dec 28-29 |
+| **API Versioning** | 📋 | 4-6h | Medium | `/api/v1/` prefix |
+| **Config Centralization** | 📋 | 3-4h | Medium | All settings in SL_Config |
 
 ### 🟡 Medium Priority
 
-| Feature | Status | Effort | Impact |
-|---------|--------|--------|--------|
-| Config Centralization | 📋 | 3-4h | All settings in SL_Config |
-| Automated Testing | 📋 | 6-8h | Basic test suite |
-| Monitoring Dashboard | 📋 | 4-6h | Health checks |
-
----
-
-## NEW MODULES (PROPOSED)
-
-### 🟡 Goals Tracker
-**Purpose:** Visual milestones (debt-free date, €1M net worth, etc.)  
-**Effort:** 8-12h  
-**Priority:** Medium
-
-Features:
-- Define goals with target dates/amounts
-- Progress visualization
-- Celebration notifications when achieved
-
-### 🟡 Variance Report
-**Purpose:** Monthly actual vs planned analysis  
-**Effort:** 6-8h  
-**Priority:** Medium
-
-Features:
-- Auto-generate comparison report
-- Highlight significant variances (>10%)
-- Trend analysis
-
-### 🟢 Family Finance Game
-**Purpose:** Gamify savings for teaching son  
-**Effort:** 10-15h  
-**Priority:** Low
-
-Features:
-- Simple goals for kids
-- Visual rewards
-- Educational component
+| Feature | Status | Effort | Impact | Notes |
+|---------|--------|--------|--------|-------|
+| **Automated Testing** | 📋 | 6-8h | Medium | Basic test suite |
+| **Monitoring Dashboard** | 📋 | 4-6h | Medium | Health checks |
+| **Logging & Analytics** | 📋 | 4-5h | Medium | Usage tracking |
 
 ---
 
 ## IMPLEMENTATION SCHEDULE
 
-### Sprint 1: Critical Fixes (This Week)
-- [ ] Fix Dashboard column mapping (2-3h) 🔴
-- [ ] Fix !ytd to use txn_date (30min) 🟠
-- [ ] Delete obsolete v4 files (30min)
+### Sprint 1: Quick Wins (Jan 1-15, 2026)
+- [ ] Pattern Learning (Feature 17) - 5-6h
+- [ ] Daily Summary automation (Feature 19) - 3-4h
+- [ ] Automated backup setup - 2-3h
+- [ ] Mobile optimization (Dashboard) - 4-6h
 
-**Total: ~4 hours**
+**Total: ~16 hours**
 
-### Sprint 2: Quick Wins (Next 2 Weeks)
-- [ ] Pattern Learning (5-6h) 🟠
-- [ ] Category Recategorization (3-4h) 🟠
-- [ ] Daily Summary automation (3-4h) 🟠
-- [ ] Validation row in StandardFinance (2-3h) 🟠
-
-**Total: ~15 hours**
-
-### Sprint 3: Enhancements (Month 2)
-- [ ] Expense category breakdown in Dashboard (4-6h)
-- [ ] Named ranges in StandardFinance (4-6h)
-- [ ] Weekly Summary automation (2-3h)
-- [ ] Historical data import (3-4h)
+### Sprint 2: Enhancements (Jan 15-31, 2026)
+- [ ] Category Recategorization (Feature 18) - 3-4h
+- [ ] Named Ranges (StandardFinance) - 4-6h
+- [ ] Historical Trend Charts (Dashboard) - 4-6h
+- [ ] Weekly Summary automation (Feature 21) - 2-3h
 
 **Total: ~17 hours**
 
+### Sprint 3: New Module (Feb 2026)
+- [ ] Goals Tracker Module - 8-12h
+- [ ] Validation Row (StandardFinance) - 2-3h
+- [ ] Error Boundaries (Dashboard) - 2h
+
+**Total: ~15 hours**
+
 ### Q2 2026
-- Goals Tracker module
 - Variance Report module
-- Mobile PWA
+- Historical Data Import
+- Scenario Modeling
+- Tax Preparation Module (start)
 
 ---
 
@@ -405,7 +521,7 @@ Features:
 | Cloudflare Workers | €0 |
 | Discord | €0 |
 | GitHub Pages | €0 |
-| Gemini API (optional) | €0 (free tier) |
+| Gemini API | €0 (free tier) |
 | **TOTAL** | **€0/month** |
 
 ### With Future Features
@@ -413,11 +529,11 @@ Features:
 | Timeframe | Features Added | Monthly Cost |
 |-----------|----------------|--------------|
 | Current | All existing | €0 |
-| +3 months | +Pattern Learning, Summaries | €0 |
+| +3 months | +Pattern Learning, Summaries, Goals | €0 |
 | +6 months | +Receipt OCR (optional) | €0-10 |
-| +12 months | +Voice Input (optional) | €0-20 |
+| +12 months | +Voice Input, Bank API (optional) | €0-30 |
 
-**Projected Maximum: €20/month** (if all optional paid features added)
+**Projected Maximum: €30/month** (if all optional paid features added)
 
 ---
 
@@ -426,33 +542,24 @@ Features:
 ### Key Performance Indicators (KPIs)
 
 **Adoption Metrics:**
-- Daily active users (H+W)
-- Transactions logged per day (target: 5-10)
-- Command usage frequency
+- Daily active users: 2 (H+W)
+- Transactions logged per day: Target 5-10
+- Income logging compliance: Target 100% by Day 5
 
 **Accuracy Metrics:**
-- AI categorization accuracy (target: >90%)
-- Pattern match rate (target: >70%)
-- Recategorization rate (target: <10%)
+- AI categorization accuracy: Target >90%
+- Pattern match rate: Target >70%
+- Recategorization rate: Target <10%
 
 **Efficiency Metrics:**
-- Average logging time (target: <10 seconds)
-- System response time (target: <5 seconds)
-- Uptime (target: >99.9%)
+- Average logging time: Target <10 seconds
+- System response time: Target <5 seconds
+- Uptime: Target >99.9%
 
 **Financial Metrics:**
-- Budget adherence rate (target: 80% categories within budget)
-- Over-budget categories per month (target: <3)
-- Uncategorized transactions (target: <5%)
-
----
-
-## HOW TO PROPOSE NEW FEATURES
-
-1. Add to appropriate module section above
-2. Include: Description, Effort estimate, Impact assessment
-3. Assign initial priority
-4. Discuss in next planning session
+- Budget adherence rate: Target 80% categories within budget
+- Over-budget categories per month: Target <3
+- Projection accuracy: Target ±10% of actual
 
 ---
 
@@ -460,6 +567,7 @@ Features:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 3.0 | Dec 29, 2025 | Comprehensive update reflecting v2.2/v3.1/v6.1 completion; added detailed feature specs |
 | 2.0 | Dec 23, 2025 | Consolidated ShadowLedger_TODO + ROADMAP |
 | 1.0 | Dec 2025 | Initial consolidated roadmap |
 

@@ -1,36 +1,41 @@
 # Aaron Family Standard Finance Guide
 
-**Version:** 6.1.2  
-**Last Updated:** 2025-12-28 UTC+1  
-**Simulation Period:** January 2026 - December 2042 (204 months)  
-**Associated File:** `FinanceSource_v6.1.xlsx`
+```yaml
+version: 6.2.0
+last_updated: 2025-12-28 23:15:00 UTC+2
+status: Production
+simulation_period: January 2026 - December 2042 (204 months)
+associated_file: FinanceSource_v6.1.xlsx
+```
 
 ---
 
 ## TABLE OF CONTENTS
 
-1. [Overview](#overview)
-2. [Workbook Structure](#workbook-structure)
-3. [Money Flow Architecture](#money-flow-architecture)
-4. [Income Structure](#income-structure)
-5. [Debt Management](#debt-management)
-6. [The POT System](#the-pot-system)
-7. [Sondertilgung (Extra Mortgage Payments)](#sondertilgung)
-8. [Investment Strategy](#investment-strategy)
-9. [Monthly Model Column Reference](#monthly-model-column-reference)
-10. [Assumptions Reference](#assumptions-reference)
-11. [Key Formulas Explained](#key-formulas-explained)
-12. [Financial Projections](#financial-projections)
-13. [Validation Checkpoints](#validation-checkpoints)
-14. [Version History](#version-history)
+1. [Overview](#1-overview)
+2. [Workbook Structure](#2-workbook-structure)
+3. [Money Flow Architecture](#3-money-flow-architecture)
+4. [Income Structure](#4-income-structure)
+5. [Debt Management](#5-debt-management)
+6. [The POT System](#6-the-pot-system)
+7. [Sondertilgung (Extra Mortgage Payments)](#7-sondertilgung)
+8. [Investment Strategy](#8-investment-strategy)
+9. [Monthly Model Column Reference](#9-monthly-model-column-reference)
+10. [ShadowLedger Integration](#10-shadowledger-integration)
+11. [Assumptions Reference](#11-assumptions-reference)
+12. [Key Formulas Explained](#12-key-formulas-explained)
+13. [Financial Projections](#13-financial-projections)
+14. [Validation Checkpoints](#14-validation-checkpoints)
+15. [Architectural Decisions](#15-architectural-decisions)
+16. [Version History](#16-version-history)
 
 ---
 
-## OVERVIEW
+## 1. OVERVIEW
 
 This guide documents the Aaron Family's comprehensive 17-year financial simulation model. The model tracks all income sources, debt obligations, investments, and net worth from January 2026 through December 2042.
 
-### Key Principles
+### 1.1 Key Principles
 
 1. **Central Master Pot (CMP) Architecture**: All money flows through a single hub
 2. **Avalanche Debt Strategy**: Attack highest-APR debt first
@@ -38,34 +43,60 @@ This guide documents the Aaron Family's comprehensive 17-year financial simulati
 4. **Opportunistic Sondertilgung**: Make extra mortgage payments when conditions allow
 5. **Salary Timing Rule**: Income earned in Month X is available in Month X+1
 
-### Family Context
+### 1.2 Family Context
 
 - **Location**: Baden-Württemberg, Germany
 - **Employment**: Both spouses work at SAP SE (SuccessFactors division)
 - **Housing**: Owner-occupied home with mortgage maturing June 2033
 - **Child**: One son (AK)
 
+### 1.3 System Integration
+
+StandardFinance is part of a three-module system:
+
+| Module | Purpose | Integration |
+|--------|---------|-------------|
+| **ShadowLedger** | Discord-based expense/income tracking | Feeds actual income to Monthly_Model |
+| **StandardFinance** | 17-year financial projection | Core calculation engine |
+| **Dashboard** | Sankey flow visualization | Reads from Monthly_Model |
+
 ---
 
-## WORKBOOK STRUCTURE
+## 2. WORKBOOK STRUCTURE
+
+### 2.1 Core Sheets
 
 | Sheet | Purpose | Status |
 |-------|---------|--------|
 | `Assumptions` | All configurable parameters (~90 values) | **Active** |
 | `RSU_Schedule` | RSU vesting reference by quarter | Active |
-| `Salary_Schedule` | Monthly salary/bonus with growth projections | **New in v6** |
+| `Salary_Schedule` | Monthly salary/bonus with growth projections | Active |
 | `Debt_Register` | All 14 debts with details | Active |
 | `Monthly_Model_v4` | Main 204-row simulation (88 columns) | **Active - USE THIS** |
 
-### Deprecated Sheets
+### 2.2 ShadowLedger Integration Sheets
+
+These sheets are documented in `BLUEPRINT_ShadowLedger_v2_2_0.md`:
+
+| Sheet | Purpose | Data Flow |
+|-------|---------|-----------|
+| `ShadowLedger` | Expense transaction log | → Exp_Alloc reporting |
+| `SL_Budget` | Monthly budget tracking | ← Budget formulas |
+| `SL_Patterns` | Merchant categorization rules | Internal to SL |
+| `SL_Config` | System configuration | Internal to SL |
+| `SL_Income_Log` | Actual income entries | **→ Monthly_Model cols L, T, AG, AJ** |
+| `SL_Investment_Log` | Investment transfer log | Audit trail |
+
+### 2.3 Deprecated Sheets
+
 - `Monthly_Model` - Original version
 - `Monthly_Model_v2` - Previous iteration
 
 ---
 
-## MONEY FLOW ARCHITECTURE
+## 3. MONEY FLOW ARCHITECTURE
 
-### The Critical Salary Timing Rule
+### 3.1 The Critical Salary Timing Rule
 
 **CRITICAL**: Salary for Month X is received at the END of Month X, therefore available for spending in Month X+1.
 
@@ -82,11 +113,11 @@ This guide documents the Aaron Family's comprehensive 17-year financial simulati
 - **October**: September RSU available
 - **January**: December RSU available
 
-### Money Flow Diagram
+### 3.2 Money Flow Diagram
 
 ```
 +========================================================================+
-|                           MONEY FLOW v6.1                              |
+|                           MONEY FLOW v6.2                              |
 +========================================================================+
 
                      GROSS INCOME (Month X-1)
@@ -97,8 +128,8 @@ This guide documents the Aaron Family's comprehensive 17-year financial simulati
                                v
                 +------------------------------+
                 |     PRE-TAX DEDUCTIONS       |
-                |  * Time Account (EUR400/mo)  |
-                |  * OWNSAP (~EUR1,356/mo)     |
+                |  * Time Account (€400/mo)    |
+                |  * OWNSAP (~€1,356/mo)       |
                 +------------------------------+
                                |
                                v
@@ -109,7 +140,7 @@ This guide documents the Aaron Family's comprehensive 17-year financial simulati
                                v
                 +------------------------------+
                 |     POST-TAX DEDUCTIONS      |
-                |  * SAP Loan (EUR583/mo) auto |
+                |  * SAP Loan (€583/mo) auto   |
                 |  * SAP Taxed Advantage       |
                 |    (0.3% x prev balance)     |
                 +------------------------------+
@@ -121,9 +152,9 @@ This guide documents the Aaron Family's comprehensive 17-year financial simulati
 |  TAX RESERVE    |                        |   CENTRAL MASTER    |
 |  (YT 44.3%)     |                        |      POT (CMP)      |
 |                 |                        |                     |
-|  Separate acct  |                        |  Cap: EUR10,000     |
+|  Separate acct  |                        |  Cap: €10,000       |
 |  Resets yearly  |                        |  Can go negative    |
-+-----------------+                        |  (to -EUR1,000 max) |
++-----------------+                        |  (to -€1,000 max)   |
                                            +---------------------+
                                                       |
                 ==========================================
@@ -136,12 +167,12 @@ This guide documents the Aaron Family's comprehensive 17-year financial simulati
 +-----------------+  +-----------------+  +-----------------+
 |  MORTGAGE       |  |  DEBT           |  |  EXPENSES       |
 |                 |  |  REPAYMENT      |  |                 |
-|  EUR2,281/mo    |  |                 |  |  EUR4,110 base  |
+|  €2,281/mo      |  |                 |  |  €4,110 base    |
 |  Until Jun 2033 |  |  High-APR first |  |  +3%/yr inflate |
 |                 |  |  Then fixed     |  |                 |
-|  Sondertilgung: |  |                 |  |  2027: EUR4,213 |
-|  When possible  |  |  SAP Loan auto  |  |  2030: EUR4,602 |
-|  EUR21,550/yr   |  |                 |  |  2042: EUR6,560 |
+|  Sondertilgung: |  |                 |  |  2027: €4,233   |
+|  When possible  |  |  SAP Loan auto  |  |  2030: €4,625   |
+|  €21,550/yr     |  |                 |  |  2042: €6,593   |
 +-----------------+  +-----------------+  +-----------------+
          |                    |                    |
          +--------------------+--------------------+
@@ -156,16 +187,16 @@ This guide documents the Aaron Family's comprehensive 17-year financial simulati
 |  SONDERTILGUNG  |  |  CASHPILE       |  |  INVESTMENT     |
 |  (If conditions |  |                 |  |                 |
 |   met)          |  |  20% of excess  |  |  80% of excess  |
-|                 |  |  Target: EUR15K |  |  OWNSAP contrib |
-|  EUR21,550/year |  |                 |  |  8.5%/yr growth |
+|                 |  |  Target: €15K   |  |  OWNSAP contrib |
+|  €21,550/year   |  |                 |  |  8.5%/yr growth |
 +-----------------+  +-----------------+  +-----------------+
 ```
 
 ---
 
-## INCOME STRUCTURE
+## 4. INCOME STRUCTURE
 
-### Salary Structure (v6 Update: 90% Fixed / 10% Bonus)
+### 4.1 Salary Structure (90% Fixed / 10% Bonus)
 
 | Person | Fixed Salary 2026 | Bonus 2026 | Total 2026 | Growth Rate |
 |--------|-------------------|------------|------------|-------------|
@@ -177,42 +208,41 @@ This guide documents the Aaron Family's comprehensive 17-year financial simulati
 - W Fixed Monthly: €6,195.67
 - Bonuses paid in March, available in April
 
-### Salary_Schedule Sheet
+### 4.2 Salary_Schedule Sheet
 
 The `Salary_Schedule` sheet contains pre-calculated monthly values with growth applied:
 
-| Column | Description |
-|--------|-------------|
-| A | Year (2026-2042) |
-| B | Month (1-12) |
-| C | **H_Salary_Modifier** (default 0%, applies to husband's salary+bonus) |
-| D | **W_Salary_Modifier** (default 0%, applies to wife's salary+bonus) |
-| E | H_Fixed_Monthly (base × growth × (1+H_modifier)) |
-| F | H_Bonus (in April rows only) |
-| G | W_Fixed_Monthly (base × growth × (1+W_modifier)) |
-| H | W_Bonus (in April rows only) |
-| I | Notes (for manual annotations) |
+| Column | Header | Description |
+|--------|--------|-------------|
+| A | Year | 2026-2042 |
+| B | Month | 1-12 |
+| C | H_Salary_Modifier | Default 0%, applies to husband's salary+bonus |
+| D | W_Salary_Modifier | Default 0%, applies to wife's salary+bonus |
+| E | H_Fixed_Monthly | Base × growth × (1+H_modifier) |
+| F | H_Bonus | In April rows only |
+| G | W_Fixed_Monthly | Base × growth × (1+W_modifier) |
+| H | W_Bonus | In April rows only |
+| I | Notes | For manual annotations |
 
-**To give a raise**: Change the modifier in column C (husband) or D (wife). For example:
+**To give a raise**: Change the modifier in column C (husband) or D (wife).
 - Set C50 = 0.10 to give husband a 10% raise starting that month
 - Set D50 = 0.15 to give wife a 15% raise starting that month
-- Modifiers are independent - you can adjust each spouse separately
 
-### Time Account Contributions
+### 4.3 Time Account Contributions
 
 | Person | Monthly TA | Bonus TA Rate |
 |--------|------------|---------------|
 | Husband | €200/month | 35% of bonus |
 | Wife | €200/month | 35% of bonus |
 
-**Hourly Rate Calculation** (v6.1 update):
-- Hourly rate = Annual FIXED salary / 208 working days
+**Hourly Rate Calculation**:
+- Hourly rate = Annual FIXED salary / 208 working days / 8 hours
 - Rate updates dynamically based on Salary_Schedule
-- Example (2026): EUR88,397 / 208 = EUR425.0/day ~ EUR53.13/hour
+- Example (2026): €88,397 / 208 / 8 = €53.13/hour
 
 Time Account hours accumulate and can be cashed out (tracked in NW_TA).
 
-### RSU (Restricted Stock Units)
+### 4.4 RSU (Restricted Stock Units)
 
 | Person | Annual Grant | Vesting Schedule |
 |--------|--------------|------------------|
@@ -221,7 +251,7 @@ Time Account hours accumulate and can be cashed out (tracked in NW_TA).
 
 RSUs vest at end of quarter, available the following month.
 
-### OWNSAP (Employee Stock Purchase Plan)
+### 4.5 OWNSAP (Employee Stock Purchase Plan)
 
 - **Deduction Rate**: 10% of gross salary
 - **Value Multiplier**: Deduction × 1.4 + €20
@@ -229,19 +259,19 @@ RSUs vest at end of quarter, available the following month.
   - During High-APR debt attack: SOLD immediately, proceeds to CMP
   - After High-APR cleared: Goes directly to Investment
 
-### YouTube Income
+### 4.6 YouTube Income
 
 | Parameter | Value |
 |-----------|-------|
-| Starting (Dec 2025) | €1,000/month gross |
-| Growth | €100 every 6 months |
-| Cap | €2,000/month |
+| Starting (Jan 2026) | €1,000/month gross |
+| Growth | €1,000 every 6 months |
+| Cap | €20,000/month |
 | Tax Reserve | 44.3% (set aside, not spent) |
 | Net to CMP | ~€557/month initially |
 
 **Tax Reserve Reset**: Resets to €0 at the beginning of each year (January).
 
-### SAP Loan (v6 Update: Split 50/50 with Taxed Advantage)
+### 4.7 SAP Loan (Split 50/50 with Taxed Advantage)
 
 | Parameter | Husband | Wife | Total |
 |-----------|---------|------|-------|
@@ -255,11 +285,11 @@ RSUs vest at end of quarter, available the following month.
 
 ---
 
-## DEBT MANAGEMENT
+## 5. DEBT MANAGEMENT
 
-### Debt Register Overview
+### 5.1 Debt Register Overview
 
-| # | Debt | Owner | Balance | APR | Monthly | Type | Priority |
+| # | Debt | Owner | Balance | APR | Minimum | Type | Priority |
 |---|------|-------|---------|-----|---------|------|----------|
 | 1 | TF Credit Card | H | €9,200 | 22.0% | €300 | Attack | 1 |
 | 2 | DB Overdraft | H | €2,000 | 13.0% | €0 | Attack | 2 |
@@ -278,14 +308,14 @@ RSUs vest at end of quarter, available the following month.
 
 *SAP Loan: 0% interest but taxed as benefit
 
-### Debt Attack Strategy (Avalanche Method)
+### 5.2 Debt Attack Strategy (Avalanche Method)
 
 **Phase 1: High-APR Attack (Jan-Apr 2026)**
 
 1. Pay **minimum payments** on all high-APR debts FIRST:
-   - Klarna: €250/mo minimum
-   - Nordea: €200/mo minimum
-   - Aktia: €50/mo minimum
+   - Klarna: €200/mo minimum
+   - Nordea: €100/mo minimum
+   - Aktia: €30/mo minimum
    - TF: €300/mo minimum
    - DB: €0/mo minimum (no minimum required)
 
@@ -294,7 +324,7 @@ RSUs vest at end of quarter, available the following month.
 4. OWNSAP is SOLD during this phase
 5. CMP can go negative up to -€1,000 if needed
 
-**Attack Order**: TF -> DB -> Klarna -> Nordea -> Aktia
+**Attack Order**: TF → DB → Klarna → Nordea → Aktia
 
 **Expected Clearance**:
 - TF: April 2026
@@ -303,7 +333,7 @@ RSUs vest at end of quarter, available the following month.
 - Aktia: September 2026
 - Nordea: October 2026
 
-### Fixed Payment Loans
+### 5.3 Fixed Payment Loans
 
 These loans have set payment schedules - let them run:
 
@@ -316,7 +346,7 @@ These loans have set payment schedules - let them run:
 | Student Loan | Jul 2030 | €11,000 |
 | SAP Loan | Jun 2033 | €52,500 |
 
-### Low-APR Debt Strategy
+### 5.4 Low-APR Debt Strategy
 
 **Scalable Credit (€5,500 @ 3.3%)**: Leave open, invest instead. The expected investment return (8.5%) exceeds the interest cost.
 
@@ -324,9 +354,9 @@ These loans have set payment schedules - let them run:
 
 ---
 
-## THE POT SYSTEM
+## 6. THE POT SYSTEM
 
-### Central Master Pot (CMP) Rules
+### 6.1 Central Master Pot (CMP) Rules
 
 The CMP is the central hub through which ALL money flows.
 
@@ -354,6 +384,7 @@ The CMP is the central hub through which ALL money flows.
 - Net RSU
 - Net YouTube
 - OWNSAP proceeds (during debt attack phase)
+- Other family income
 
 **Rule 2**: CMP pays out in priority order
 1. Mortgage payment (€2,281/mo)
@@ -364,7 +395,7 @@ The CMP is the central hub through which ALL money flows.
 
 **Rule 3**: CMP is capped at €10,000
 - Excess above cap flows to Investment and Cashpile
-- 20% to Cashpile (until €10,000 target)
+- 20% to Cashpile (until €15,000 target)
 - 80% to Investment
 
 **Rule 4**: CMP can go negative (controlled)
@@ -372,7 +403,7 @@ The CMP is the central hub through which ALL money flows.
 - Jan-Mar 2026: May go negative during debt attack
 - Fat months replenish
 
-### Cashpile Rules
+### 6.2 Cashpile Rules
 
 | Phase | Target | Priority |
 |-------|--------|----------|
@@ -384,7 +415,7 @@ The CMP is the central hub through which ALL money flows.
 - Once at €15,000, no further contributions
 - Can be drawn for Sondertilgung/Balloon funding (down to €5,000 baseline)
 
-### Investment Account Rules
+### 6.3 Investment Account Rules
 
 **Inflows**:
 - OWNSAP contributions (after High-APR cleared)
@@ -393,19 +424,19 @@ The CMP is the central hub through which ALL money flows.
 
 **Outflows**:
 - Sondertilgung funding (sell if needed)
-- Balloon payment in Jun 2033
+- Balloon payment in Jul 2033
 
 **Growth**: 8.5% annual return (0.68% monthly)
 
 ---
 
-## SONDERTILGUNG
+## 7. SONDERTILGUNG
 
-### What is Sondertilgung?
+### 7.1 What is Sondertilgung?
 
 Sondertilgung = Extra principal payment on the mortgage, allowed once per year up to €21,550.
 
-### v6 Funding Logic (UPDATED)
+### 7.2 Funding Logic
 
 **Trigger Conditions** (ALL must be met):
 1. High-APR debt = €0
@@ -433,37 +464,38 @@ Where `CMP_raw` = CMP_Available - Mortgage_Pmt - Debt_Payments - Expenses
 
 **Flow**: All funding channels through CMP before paying Sondertilgung.
 
-### Sondertilgung Schedule (Projected)
+### 7.3 Sondertilgung Schedule (From xlsx)
 
 | Year | Month | Amount | Type |
 |------|-------|--------|------|
+| 2027 | May | €21,550 | Regular |
 | 2028 | January | €21,550 | Regular |
 | 2029 | January | €21,550 | Regular |
 | 2030 | January | €21,550 | Regular |
 | 2031 | January | €21,550 | Regular |
 | 2032 | January | €21,550 | Regular |
-| 2033 | July | ~€170,815 | **Balloon** |
+| 2033 | July | €143,522 | **Balloon** |
 
-**Note:** No regular Sondertilgung in 2033 (balloon year). Total extra principal: ~€278,565
+**Note:** No regular Sondertilgung in 2033 (balloon year). Total extra principal: ~€272,822
 
 ---
 
-## INVESTMENT STRATEGY
+## 8. INVESTMENT STRATEGY
 
-### Asset Allocation
+### 8.1 Asset Allocation
 
 All investments are in a single growth portfolio:
 - Expected annual return: 8.5%
 - Tax on gains: 18.4625%
 
-### OWNSAP Handling
+### 8.2 OWNSAP Handling
 
 | Phase | Action |
 |-------|--------|
-| High-APR Attack | SELL immediately -> CMP |
-| After Attack | Hold -> Investment account |
+| High-APR Attack | SELL immediately → CMP |
+| After Attack | Hold → Investment account |
 
-### Balloon Payment (July 2033)
+### 8.3 Balloon Payment (July 2033)
 
 When the mortgage matures at end of June 2033 (month 90), the remaining balance is paid in July 2033 (month 91):
 
@@ -472,8 +504,7 @@ When the mortgage matures at end of June 2033 (month 90), the remaining balance 
 2. Cashpile (amount over €5,000 baseline)
 3. Sell from Investment (whatever remains)
 
-**Expected Balloon**: ~€122,000
-**Expected Investment sell-off**: ~€90,000
+**Expected Balloon**: ~€143,522
 
 After the balloon payment:
 - Mortgage = €0
@@ -483,9 +514,9 @@ After the balloon payment:
 
 ---
 
-## MONTHLY MODEL COLUMN REFERENCE
+## 9. MONTHLY MODEL COLUMN REFERENCE
 
-### Complete Column Mapping (87 Columns)
+### 9.1 Complete Column Mapping (88 Columns)
 
 | Col | Letter | Header | Description |
 |-----|--------|--------|-------------|
@@ -501,7 +532,7 @@ After the balloon payment:
 | 9 | I | H_Gross_Bonus | From Salary_Schedule (April) |
 | 10 | J | H_Bonus_TA | Bonus × 35% |
 | 11 | K | H_Taxable | Gross - TA - OWNSAP + Bonus - Bonus_TA |
-| 12 | L | H_Net_Salary | Taxable × 0.6 - SAP_Pmt - SAP_TaxedAdv |
+| 12 | L | H_Net_Salary | **Actual from SL_Income_Log OR projection** |
 | 13 | M | H_RSU_Net | Previous month's RSU vest |
 | **Wife Income** ||||
 | 14 | N | W_Gross_Salary | From Salary_Schedule |
@@ -510,13 +541,13 @@ After the balloon payment:
 | 17 | Q | W_Gross_Bonus | From Salary_Schedule (April) |
 | 18 | R | W_Bonus_TA | Bonus × 35% |
 | 19 | S | W_Taxable | Gross - TA - OWNSAP + Bonus - Bonus_TA |
-| 20 | T | W_Net_Salary | Taxable × 0.6 - SAP_Pmt - SAP_TaxedAdv |
+| 20 | T | W_Net_Salary | **Actual from SL_Income_Log OR projection** |
 | 21 | U | W_RSU_Net | Previous month's RSU vest |
 | **OWNSAP** ||||
 | 22 | V | H_OWNSAP_Val | Deduction × 1.4 + €20 |
 | 23 | W | W_OWNSAP_Val | Deduction × 1.4 + €20 |
 | 24 | X | OWNSAP_Total | V + W |
-| **SAP Loan Detail (v6)** ||||
+| **SAP Loan Detail** ||||
 | 25 | Y | H_SAP_TaxedAdv | 0.3% × previous balance |
 | 26 | Z | H_SAPLoan_Pmt | €291.67 for 90 months |
 | 27 | AA | H_SAPLoan_Bal | €26,250 decreasing |
@@ -526,11 +557,11 @@ After the balloon payment:
 | 31 | AE | SAP_Loan_Pmt | Total: Z + AC |
 | 32 | AF | SAP_Loan_Bal | Total: AA + AD |
 | **YouTube** ||||
-| 33 | AG | YT_Gross | MIN(base + growth, cap) |
+| 33 | AG | YT_Gross | **Actual from SL_Income_Log OR projection** |
 | 34 | AH | YT_Tax_Res | Gross × 44.3% |
 | 35 | AI | YT_Net | Gross - Tax Reserve |
-| **Other Income (v6.1)** ||||
-| 36 | AJ | Other_Fam_Net_Inc | Occasional family income (no tax reserve) |
+| **Other Income** ||||
+| 36 | AJ | Other_Fam_Net_Inc | **Sum from SL_Income_Log (type="other")** |
 | **CMP** ||||
 | 37 | AK | CMP_Carry | Previous month's CMP_End |
 | 38 | AL | CMP_Inflow | Net salaries + RSU + YT + OWNSAP (if attacking) + Other_Fam |
@@ -546,16 +577,16 @@ After the balloon payment:
 | **High-APR Debt** ||||
 | 47 | AU | D_TF_Pmt | TF Card payment (attack after minimums) |
 | 48 | AV | D_TF_Bal | TF Card balance |
-| 49 | AW | D_Klarna_Pmt | Klarna payment (min €250) |
+| 49 | AW | D_Klarna_Pmt | Klarna payment (min €200) |
 | 50 | AX | D_Klarna_Bal | Klarna balance |
-| 51 | AY | D_Nordea_Pmt | Nordea payment (min €200) |
+| 51 | AY | D_Nordea_Pmt | Nordea payment (min €100) |
 | 52 | AZ | D_Nordea_Bal | Nordea balance |
 | 53 | BA | D_DB_Pmt | DB Overdraft payment |
 | 54 | BB | D_DB_Bal | DB Overdraft balance |
-| 55 | BC | D_Aktia_Pmt | Aktia payment (min €50) |
+| 55 | BC | D_Aktia_Pmt | Aktia payment (min €30) |
 | 56 | BD | D_Aktia_Bal | Aktia balance |
 | 57 | BE | D_HighAPR_Total | Sum of High-APR payments |
-| **Low-APR/Future Debt (v6)** ||||
+| **Low-APR/Future Debt** ||||
 | 58 | BF | D_Scalable_Pmt | €0 (placeholder) |
 | 59 | BG | D_Scalable_Bal | €5,500 |
 | 60 | BH | D_AK_Pmt | €0 (placeholder) |
@@ -569,7 +600,7 @@ After the balloon payment:
 | 67 | BO | D_Fixed_Total | Sum incl. Scalable + AK |
 | **Expenses** ||||
 | 68 | BP | Exp_Budget | Base × (1 + 3%)^years |
-| 69 | BQ | Exp_Alloc | = Budget |
+| 69 | BQ | Exp_Alloc | = Budget (linked to ShadowLedger for actuals) |
 | **Investment** ||||
 | 70 | BR | Inv_Begin | Previous End |
 | 71 | BS | Inv_OWNSAP | OWNSAP if High-APR cleared |
@@ -597,24 +628,131 @@ After the balloon payment:
 
 ---
 
-## ASSUMPTIONS REFERENCE
+## 10. SHADOWLEDGER INTEGRATION
 
-### Income Parameters
+### 10.1 Overview
+
+ShadowLedger feeds **actual income data** to Monthly_Model_v4 via the `SL_Income_Log` sheet. This enables real income values to override projections while preserving the 17-year forecast.
+
+**Data Flow:**
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    INCOME DATA FLOW                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Discord                                                            │
+│    │                                                                │
+│    ├─ !income 4200 salary h ──┐                                     │
+│    ├─ !income 3800 salary w ──┤                                     │
+│    ├─ !income 1200 youtube ───┼──▶ SL_Income_Log (sheet)            │
+│    └─ !income 50 other ───────┘           │                         │
+│                                           │                         │
+│                                           ▼                         │
+│  Monthly_Model_v4                                                   │
+│    │                                                                │
+│    ├─ L (H_Net_Salary) ◀─── IF actual exists, ELSE projection       │
+│    ├─ T (W_Net_Salary) ◀─── IF actual exists, ELSE projection       │
+│    ├─ AG (YT_Gross) ◀────── IF actual exists, ELSE projection       │
+│    └─ AJ (Other_Inc) ◀───── SUMIFS (0 if none)                      │
+│              │                                                      │
+│              ▼                                                      │
+│    CMP_Inflow (col AL) ◀─── L + M + T + U + AI + AJ + ...           │
+│              │                                                      │
+│              ▼                                                      │
+│    CMP_Available → CMP_End → Inv_Excess → ... → 2042                │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 10.2 Formula Pattern
+
+The integration uses `IF(COUNTIFS>0, SUMIFS, fallback)` pattern because SUMIFS returns 0 (not an error) when no match is found.
+
+**MonthKey Construction:**
+```
+TEXT(B,"0000") & "-" & TEXT(A,"00")
+```
+Where A = Month (1-12), B = Year (2026+). Result: "2026-01"
+
+### 10.3 Exact Formulas (Row 2)
+
+**L2 (H_Net_Salary):**
+```excel
+=IF(COUNTIFS(SL_Income_Log!$B:$B,TEXT(B2,"0000")&"-"&TEXT(A2,"00"),SL_Income_Log!$C:$C,"salary",SL_Income_Log!$E:$E,"H")>0,
+    SUMIFS(SL_Income_Log!$D:$D,SL_Income_Log!$B:$B,TEXT(B2,"0000")&"-"&TEXT(A2,"00"),SL_Income_Log!$C:$C,"salary",SL_Income_Log!$E:$E,"H"),
+    K2*(1-Assumptions!$B$102)-Z2-Y2)
+```
+
+**T2 (W_Net_Salary):**
+```excel
+=IF(COUNTIFS(SL_Income_Log!$B:$B,TEXT(B2,"0000")&"-"&TEXT(A2,"00"),SL_Income_Log!$C:$C,"salary",SL_Income_Log!$E:$E,"W")>0,
+    SUMIFS(SL_Income_Log!$D:$D,SL_Income_Log!$B:$B,TEXT(B2,"0000")&"-"&TEXT(A2,"00"),SL_Income_Log!$C:$C,"salary",SL_Income_Log!$E:$E,"W"),
+    S2*(1-Assumptions!$B$102)-AC2-AB2)
+```
+
+**AG2 (YT_Gross):**
+```excel
+=IF(COUNTIFS(SL_Income_Log!$B:$B,TEXT(B2,"0000")&"-"&TEXT(A2,"00"),SL_Income_Log!$C:$C,"youtube")>0,
+    SUMIFS(SL_Income_Log!$D:$D,SL_Income_Log!$B:$B,TEXT(B2,"0000")&"-"&TEXT(A2,"00"),SL_Income_Log!$C:$C,"youtube"),
+    MIN(Assumptions!$B$49+FLOOR((ROW()-2)/6,1)*Assumptions!$B$50,Assumptions!$B$51))
+```
+
+**AJ2 (Other_Fam_Net_Inc):**
+```excel
+=SUMIFS(SL_Income_Log!$D:$D,SL_Income_Log!$B:$B,TEXT(B2,"0000")&"-"&TEXT(A2,"00"),SL_Income_Log!$C:$C,"other")
+```
+
+### 10.4 Integration Behavior
+
+| Aspect | Behavior |
+|--------|----------|
+| **Cascade** | When actual differs from projection, delta cascades through all downstream calculations to 2042 |
+| **No Match** | Falls back to projection formula (salary) or returns 0 (other income) |
+| **Multiple Entries** | SUMIFS aggregates all matching entries for the month |
+| **TA Hours** | NOT integrated via formula - manual override at Hard Close if needed |
+| **Investment** | NOT integrated via formula - logged for audit trail only |
+
+### 10.5 What's Automatic vs Manual
+
+**Automatic (formula-driven):**
+- H Net Salary → Discord → Model ✅
+- W Net Salary → Discord → Model ✅
+- YouTube Gross → Discord → Model ✅
+- Other Income → Discord → Model ✅
+
+**Manual (audit trail only):**
+- TA Hours → Discord log + Manual override if needed
+- Investment → Discord log + Manual override at Hard Close
+
+---
+
+## 11. ASSUMPTIONS REFERENCE
+
+### 11.1 Income Parameters
 
 | Row | Parameter | Value | Notes |
 |-----|-----------|-------|-------|
 | 4 | H_Base_Salary | €88,397 | 90% of total |
 | 5 | H_Salary_Growth | 5% | Annual |
 | 6 | H_Base_Bonus | €9,821 | 10% of total |
-| 9 | H_Bonus_TA_Rate | 35% | To Time Account |
 | 8 | H_TA_Monthly | €200 | Fixed |
+| 9 | H_Bonus_TA_Rate | 35% | To Time Account |
 | 58 | H_OWNSAP_Rate | 10% | Of gross |
 | 15 | W_Base_Salary | €74,348 | 90% of total |
 | 16 | W_Salary_Growth | 3.5% | Annual |
 | 17 | W_Base_Bonus | €8,261 | 10% of total |
 | 20 | W_Bonus_TA_Rate | 35% | To Time Account |
 
-### SAP Loan Parameters
+### 11.2 YouTube Parameters
+
+| Row | Parameter | Value |
+|-----|-----------|-------|
+| 49 | YT_Starting_Gross | €1,000 |
+| 50 | YT_Growth_Per_6Mo | €1,000 |
+| 51 | YT_Monthly_Cap | €20,000 |
+| 52 | YT_Tax_Rate | 44.3% |
+
+### 11.3 SAP Loan Parameters
 
 | Row | Parameter | Value |
 |-----|-----------|-------|
@@ -622,7 +760,7 @@ After the balloon payment:
 | 65 | SAP_Monthly_Pmt | €583.33 |
 | 66 | SAP_End_Month | 120 (Jun 2033) |
 
-### Mortgage Parameters
+### 11.4 Mortgage Parameters
 
 | Row | Parameter | Value |
 |-----|-----------|-------|
@@ -631,15 +769,15 @@ After the balloon payment:
 | 34 | Mort_Max_Sondertilgung | €21,550 |
 | 37 | Mort_Starting_Balance | €397,546 |
 
-### Expense Parameters
+### 11.5 Expense Parameters
 
 | Row | Parameter | Value |
 |-----|-----------|-------|
 | 86 | Buffer | €100 |
-| 87 | Total_Monthly_Budget | €4,110 |
+| 87 | Total_Monthly_Budget | =SUM(B70:B86) ≈ €4,110 |
 | 88 | Lifestyle_Inflation | 3% |
 
-### Investment Parameters
+### 11.6 Investment Parameters
 
 | Row | Parameter | Value |
 |-----|-----------|-------|
@@ -647,78 +785,98 @@ After the balloon payment:
 | 42 | Inv_Annual_Return | 8.5% |
 | 44 | Inv_Tax_Rate | 18.4625% |
 
-### Target Parameters
+### 11.7 Target Parameters
 
 | Row | Parameter | Value |
 |-----|-----------|-------|
 | 91 | Cashpile_Target_Phase1 | €5,000 |
 | 92 | Cashpile_Target_Phase2 | €15,000 |
 | 93 | CMP_Cap | €10,000 |
+| 94 | Max_Monthly_Deficit | -€1,000 |
 | 98 | Cashpile_Allocation_Rate | 20% |
+
+### 11.8 Debt Minimum Payments
+
+| Row | Parameter | Value |
+|-----|-----------|-------|
+| 108 | TF_Card_Minimum | €300 |
+| 113 | Klarna_Minimum | €200 |
+| 114 | Nordea_Minimum | €100 |
+| 115 | Aktia_Minimum | €30 |
+
+### 11.9 Tax Rates
+
+| Row | Parameter | Value |
+|-----|-----------|-------|
+| 102 | Salary_Tax_Effective | 40% |
+| 103 | RSU_Tax | 44.3% |
+| 104 | YouTube_Tax | 44.3% |
+| 105 | Investment_Gains_Tax | 18.4625% |
 
 ---
 
-## KEY FORMULAS EXPLAINED
+## 12. KEY FORMULAS EXPLAINED
 
-### Net Salary Formula
+### 12.1 Net Salary Formula (Projection)
 
 ```
 H_Net_Salary = H_Taxable × (1 - Tax_Rate) - H_SAPLoan_Pmt - H_SAP_TaxedAdv
              = K × 0.6 - Z - Y
 ```
 
-### Sondertilgung Trigger Formula
+### 12.2 Sondertilgung Trigger Formula
 
 ```excel
 =IF(AND(
-    (AU{prev}+AW{prev}+AY{prev}+BA{prev}+BC{prev})<5,  -- High-APR cleared
-    BU{prev}>=20000,                                    -- Investment baseline
-    BX{prev}>=5000,                                     -- Cashpile baseline
-    SUMIF(B$2:B{prev},B{row},AR$2:AR{prev})=0,         -- Not paid this year
-    AN{row}>0,                                          -- Mortgage exists
-    (MAX(0,AL-AO-BD-BN-BP-10000)                        -- CMP excess
-     +MAX(0,BU{prev}-20000)                             -- Investment excess
-     +MAX(0,BX{prev}-5000))>=21550                      -- Cashpile excess
+    (AV{prev}+AX{prev}+AZ{prev}+BB{prev}+BD{prev})<5,  -- High-APR cleared
+    BV{prev}>=20000,                                    -- Investment baseline
+    BY{prev}>=5000,                                     -- Cashpile baseline
+    SUMIF(B$2:B{prev},B{row},AS$2:AS{prev})=0,         -- Not paid this year
+    AO{row}>0,                                          -- Mortgage exists
+    (MAX(0,AN-AP-BE-BO-BP-10000)                        -- CMP excess
+     +MAX(0,BV{prev}-20000)                             -- Investment excess
+     +MAX(0,BY{prev}-5000))>=21550                      -- Cashpile excess
 ), 21550, 0)
 ```
 
-### Investment Excess with Sondertilgung Funding
+### 12.3 Investment Excess with Sondertilgung Funding
 
 ```excel
-=IF(AR{row}>0,
+=IF(AS{row}>0,
     -- Sondertilgung case: CMP overflow minus amount sold from Investment
-    MAX(0,AL-AO-BD-BN-BP-AR-10000)
-    - MAX(0, AR - MAX(0,AL-AO-BD-BN-BP-10000) - MAX(0,BX{prev}-5000)),
+    MAX(0,AN-AP-BE-BO-BP-AS-10000)
+    - MAX(0, AS - MAX(0,AN-AP-BE-BO-BP-10000) - MAX(0,BY{prev}-5000)),
     -- Normal case: just CMP overflow
-    MAX(0,AL-AO-BD-BN-BP-10000)
+    MAX(0,AN-AP-BE-BO-BP-10000)
 )
 ```
 
-### YT Tax Reserve Yearly Reset
+### 12.4 YT Tax Reserve Yearly Reset
 
 ```excel
-TaxRes_Beg = IF(A{row}=1, 0, CA{row-1})
+TaxRes_Beg = IF(A{row}=1, 0, CB{row-1})
 ```
 
 ---
 
-## FINANCIAL PROJECTIONS
+## 13. FINANCIAL PROJECTIONS
 
-### Key Milestones
+### 13.1 Key Milestones
 
 | Date | Event |
 |------|-------|
 | Mar 2026 | ALL High-APR debt cleared |
 | Apr 2026 | N26 Overdraft paid off |
-| May 2027 | First Sondertilgung (€21,550) |
 | Apr 2027 | C3 Family Loan paid off |
+| May 2027 | First Sondertilgung (€21,550) |
 | Jul 2027 | IKEA Card paid off |
 | Aug 2027 | Revolut Loan paid off |
 | Jul 2030 | Student Loan paid off |
 | Jun 2033 | Mortgage + SAP Loan maturity |
+| Jul 2033 | Balloon payment (~€143,522) |
 | Dec 2042 | Simulation end |
 
-### Net Worth Trajectory
+### 13.2 Net Worth Trajectory
 
 | Date | CMP | Mortgage | Investment | Cashpile | Net Worth |
 |------|-----|----------|------------|----------|-----------|
@@ -731,7 +889,7 @@ TaxRes_Beg = IF(A{row}=1, 0, CA{row-1})
 
 ---
 
-## VALIDATION CHECKPOINTS
+## 14. VALIDATION CHECKPOINTS
 
 | Checkpoint | Expected Value |
 |------------|----------------|
@@ -748,53 +906,100 @@ TaxRes_Beg = IF(A{row}=1, 0, CA{row-1})
 | Jan 2027 TaxRes_Beg | €0 (reset) |
 | Jun 2033 Mort_End | €0 |
 | Jun 2033 SAP_Loan_Bal | €0 |
-| D_Fixed_Total includes | Scalable + AK + Revolut + C3 + Student + IKEA + N26 |
+| Jul 2033 Balloon | €143,522 |
+| Debt Minimums | Klarna €200, Nordea €100, Aktia €30 |
 
 ---
 
-## VERSION HISTORY
+## 15. ARCHITECTURAL DECISIONS
+
+### ADR-017: Actual vs Projected Income Pattern
+- **Decision:** Monthly_Model_v4 formulas check SL_Income_Log for actuals before using projection
+- **Pattern:** `=IF(COUNTIFS(...)>0, SUMIFS(...), [PROJECTION_FORMULA])`
+- **Behavior:** Actual replaces projection for that specific month only; future months unaffected
+
+### ADR-018: Cascade Through 2042
+- **Decision:** When actual income differs from projection, the delta cascades through all downstream calculations
+- **Impact chain:** Income → CMP_Inflow → CMP_End → Investment/Cashpile allocation → Net Worth
+- **Rationale:** Desired behavior for accurate long-term modeling
+
+### ADR-019: YouTube Input is GROSS, Net Calculated
+- **Decision:** User inputs YouTube GROSS via Discord; YT_Tax_Res and YT_Net formulas remain unchanged
+- **Rationale:** AdSense shows gross; tax reserve (44.3%) is a known formula
+
+### ADR-030: IF(COUNTIFS>0) Pattern Over IFERROR
+- **Decision:** Use `IF(COUNTIFS(...)>0, SUMIFS(...), fallback)` instead of `IFERROR(SUMIFS(...), fallback)`
+- **Rationale:** SUMIFS returns 0 (not an error) when no match is found
+
+### ADR-031: Direct Formula Integration for 4 Income Columns
+- **Decision:** Columns L, T, AG, AJ pull actuals from SL_Income_Log with projection fallback
+- **Rationale:** Automatic integration eliminates manual override for routine income
+
+### ADR-032: Exclude TA Hours from Formula Integration
+- **Decision:** Do NOT modify columns CC (H_TA_Hrs) and CD (W_TA_Hrs)
+- **Rationale:** TA columns store CUMULATIVE balance, but `!ta` logs MONTHLY delta; complexity not worth the effort
+
+### ADR-033: Other_Fam_Net_Inc Uses Simple SUMIFS
+- **Decision:** Column AJ uses plain `SUMIFS()` without IF/COUNTIFS wrapper
+- **Rationale:** Zero is the correct value when no "other" income exists
+
+### ADR-034: MonthKey Construction
+- **Decision:** Construct MonthKey as `TEXT(B,"0000")&"-"&TEXT(A,"00")` to match SL_Income_Log format
+- **Rationale:** Monthly_Model_v4 uses Column A = Month (1-12), Column B = Year (2026+)
+
+---
+
+## 16. VERSION HISTORY
+
+### v6.2.0 (2025-12-28 23:15 UTC+2)
+- **NEW: ShadowLedger Integration section** - Documents SL_Income_Log formula integration
+- **NEW: Architectural Decisions section** - ADR-017 through ADR-034
+- **FIX: YouTube Growth** - Corrected to €1,000/6mo (was €100/6mo)
+- **FIX: Debt Minimums** - Klarna €200, Nordea €100, Aktia €30
+- **FIX: Sondertilgung Table** - Added May 2027, corrected balloon to €143,522
+- **FIX: Column Count** - Header now correctly shows 88 columns
+- **FIX: Workbook Structure** - Added SL integration sheets with cross-reference
+- **Consolidated:** Absorbed all changelogs into unified document
 
 ### v6.1.2 (2025-12-28 UTC+1)
-- **Documentation sync**: Aligned guide with xlsx source of truth
-- **Column count**: Corrected to 88 (was documented as 87)
-- **Cashpile_Target_Phase2**: Corrected to €15,000 (was documented as €10,000)
-- **Budget**: Corrected to €4,110 with €100 buffer (was documented as €4,090/€450)
-- **First Sondertilgung**: Corrected to May 2027 (was documented as Apr 2027)
-- **Debt minimums**: Corrected to Klarna €200, Nordea €100, Aktia €30
-- **Assumptions row references**: Updated all row numbers to match actual xlsx
+- Documentation sync with xlsx source of truth
+- Column count corrected to 88
+- Cashpile_Target_Phase2 corrected to €15,000
+- Budget corrected to €4,110 with €100 buffer
+- First Sondertilgung corrected to May 2027
+- Debt minimums corrected
+- Assumptions row references updated
 
 ### v6.1.1 (2025-12-16 08:00 UTC+1)
-- **Sondertilgung 1x/year fix**: Now strictly enforces max 1 payment per calendar year
-- **Separate salary modifiers**: H_Salary_Modifier (col C) and W_Salary_Modifier (col D)
-- **2033 balloon handling**: No regular Sondertilgung in balloon year
-- **Sondertilgung schedule**: 6 regular (May 2027, Jan 2028-2032) + 1 balloon (Jul 2033)
+- Sondertilgung 1x/year fix
+- Separate salary modifiers (H/W)
+- 2033 balloon handling
 
 ### v6.1.0 (2025-12-16 07:30 UTC+1)
-- **Debt minimums**: Klarna €200, Nordea €100, Aktia €30 enforced during attack
-- **CMP negative floor**: Can go to -€1,000 (was €0)
-- **Salary_Schedule modifier**: Added column for easy raise adjustments
-- **Time Account hourly rate**: Now dynamic = Salary / 208 days
-- **SAP deductions**: Corrected documentation - these are POST-tax
-- **Mortgage maturity**: Stops at month 90 (Jun 2033), balloon in month 91 (Jul 2033)
-- **Balloon payment**: Funded from CMP excess -> Cashpile excess -> Investment
-- **Cashpile target**: Raised Phase 2 to €15,000
-- **Other_Fam_Net_Inc**: New column AJ for occasional family income
-- **Column count**: Now 88 columns (was 87)
+- Debt minimums enforcement
+- CMP negative floor (-€1,000)
+- Salary_Schedule modifier column
+- Time Account dynamic hourly rate
+- SAP deductions POST-tax correction
+- Mortgage maturity at month 90
+- Balloon payment funding logic
+- Cashpile target raised to €15,000
+- Other_Fam_Net_Inc column added
+- Column count: 88
 
 ### v6.0.0 (2025-12-15 21:25 UTC+1)
-- **Sondertilgung logic overhaul**: Now correctly funds from CMP excess + Investment excess + Cashpile excess
-- **Column restructure**: SAP detail columns moved after OWNSAP (cols 25-32)
-- **Scalable/AK visibility**: Added columns 57-60 for tracking
-- **D_Fixed_Total updated**: Now includes Scalable_Pmt and AK_Pmt
-- **Consolidated documentation**: Merged all guides into single Standard Finance Guide
+- Sondertilgung logic overhaul
+- Column restructure
+- Scalable/AK visibility columns
+- D_Fixed_Total updated
+- Consolidated documentation
 
 ### v5.0.0 (2025-12-15)
 - Salary restructure to 90% fixed / 10% bonus
 - SAP Loan split 50/50 with taxed advantage tracking
 - Wife's Bonus TA rate increased to 35%
-- Expenses increased by €250 (buffer €450)
+- Expenses increased by €250
 - YT Tax Reserve yearly reset
-- Bonus_TA formula bug fix
 - Salary_Schedule sheet with growth
 - Added AK Payback to Debt_Register
 
@@ -807,4 +1012,8 @@ TaxRes_Beg = IF(A{row}=1, 0, CA{row-1})
 
 ---
 
-*End of Standard Finance Guide v6.1.2*
+**END OF STANDARD FINANCE GUIDE v6.2.0**
+
+*Last Updated: 2025-12-28 23:15:00 UTC+2*
+*Status: Production*
+*Next Review: After implementing additional income types*
