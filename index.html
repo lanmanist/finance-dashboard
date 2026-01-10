@@ -792,23 +792,22 @@ let currentExpenseData = null;
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
-    console.log('[Init] API_URL from localStorage:', API_URL);
+    console.log('[Init] Starting...');
     
-    // ALWAYS clear expense cache on init to prevent stale data issues
+    // Clear expense cache
     expenseCache = {};
-    console.log('[Init] Cleared expense cache');
     
-    // Clean up API_URL if it has action parameter embedded
-    if (API_URL && API_URL.includes('action=')) {
-        console.log('[Init] Cleaning API_URL - removing embedded action parameter');
-        let cleanUrl = API_URL;
-        cleanUrl = cleanUrl.replace(/[?&]action=[^&]*/g, '');
-        cleanUrl = cleanUrl.replace(/\?&/, '?');
-        cleanUrl = cleanUrl.replace(/\?$/, '');
-        localStorage.setItem('sankey_api_url', cleanUrl);
-        API_URL = cleanUrl;
-        console.log('[Init] Cleaned API_URL:', API_URL);
+    // Clean API_URL to just the base (no query params)
+    if (API_URL) {
+        const cleanUrl = API_URL.split('?')[0];
+        if (cleanUrl !== API_URL) {
+            console.log('[Init] Cleaned URL from', API_URL, 'to', cleanUrl);
+            API_URL = cleanUrl;
+            localStorage.setItem('sankey_api_url', cleanUrl);
+        }
     }
+    
+    console.log('[Init] API_URL:', API_URL);
     
     if (API_URL) {
         document.getElementById('setupBanner').classList.add('hidden');
@@ -842,14 +841,12 @@ function saveApiUrl() {
         return;
     }
     
-    // Clean URL - remove any action parameters
-    url = url.replace(/[?&]action=[^&]*/g, '');
-    url = url.replace(/\?&/, '?');
-    url = url.replace(/\?$/, '');
+    // Just keep the base URL (before any ?)
+    url = url.split('?')[0];
     
     API_URL = url;
     localStorage.setItem('sankey_api_url', url);
-    console.log('[Init] Saved clean API_URL:', url);
+    console.log('[Init] Saved API_URL:', url);
     
     document.getElementById('setupBanner').classList.add('hidden');
     document.getElementById('controls').classList.remove('hidden');
@@ -917,7 +914,6 @@ async function refreshData() {
     // Clear expense cache on refresh
     expenseCache = {};
     currentExpenseData = null;
-    console.log('[Dashboard] Cleared expense cache');
     
     const statusDot = document.getElementById('statusDot');
     const statusText = document.getElementById('statusText');
@@ -928,13 +924,9 @@ async function refreshData() {
     document.getElementById('sankey').innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading live data...</span></div>';
     
     try {
-        // Strip any existing action parameter from the URL
-        let baseUrl = API_URL;
-        baseUrl = baseUrl.replace(/[?&]action=[^&]*/g, '');
-        baseUrl = baseUrl.replace(/\?&/, '?');
-        baseUrl = baseUrl.replace(/\?$/, '');
-        
-        const apiUrlWithAction = baseUrl.includes('?') ? `${baseUrl}&action=dashboard` : `${baseUrl}?action=dashboard`;
+        // Simple URL construction
+        const baseUrl = API_URL.split('?')[0];
+        const apiUrlWithAction = `${baseUrl}?action=dashboard`;
         console.log('[Dashboard] Fetching:', apiUrlWithAction);
         
         const res = await fetch(apiUrlWithAction);
@@ -971,79 +963,31 @@ async function fetchExpenseData(month) {
     }
     
     try {
-        // Strip any existing action parameter from the URL - with detailed logging
-        console.log('[Expense] Original API_URL:', API_URL);
-        console.log('[Expense] API_URL length:', API_URL.length);
-        console.log('[Expense] Contains action=?', API_URL.includes('action='));
-        console.log('[Expense] Contains ?:', API_URL.includes('?'));
+        // Build clean URL
+        let baseUrl = API_URL.split('?')[0];  // Just get base URL without any params
+        const apiUrlWithAction = `${baseUrl}?action=expenses&month=${month}`;
         
-        let baseUrl = API_URL;
+        console.log('[Expense] Fetching:', apiUrlWithAction);
         
-        // Step by step cleanup with logging
-        const step1 = baseUrl.replace(/[?&]action=[^&]*/g, '');
-        console.log('[Expense] After removing action=:', step1);
+        // Simple fetch - NO custom headers (causes CORS preflight with Google Apps Script)
+        const res = await fetch(apiUrlWithAction);
+        const json = await res.json();
         
-        const step2 = step1.replace(/\?&/, '?');
-        console.log('[Expense] After fixing ?&:', step2);
-        
-        const step3 = step2.replace(/\?$/, '');
-        console.log('[Expense] After removing trailing ?:', step3);
-        
-        baseUrl = step3;
-        
-        // Add cache-busting timestamp
-        const cacheBust = Date.now();
-        const separator = baseUrl.includes('?') ? '&' : '?';
-        const apiUrlWithAction = `${baseUrl}${separator}action=expenses&month=${month}&_=${cacheBust}`;
-        
-        console.log('[Expense] FINAL URL:', apiUrlWithAction);
-        console.log('[Expense] URL contains action=expenses?', apiUrlWithAction.includes('action=expenses'));
-        
-        const res = await fetch(apiUrlWithAction, {
-            method: 'GET',
-            redirect: 'follow',
-            cache: 'no-store',
-            headers: {
-                'Accept': 'application/json',
-                'Cache-Control': 'no-cache'
-            }
-        });
-        
-        console.log('[Expense] Response status:', res.status);
-        
-        const text = await res.text();
-        console.log('[Expense] Response length:', text.length, '(expense data should be ~2000, dashboard is ~365000)');
-        console.log('[Expense] Response start:', text.substring(0, 100));
-        
-        let json;
-        try {
-            json = JSON.parse(text);
-        } catch (parseErr) {
-            console.error('[Expense] JSON parse error:', parseErr);
-            return { success: false, error: 'Invalid JSON response' };
-        }
+        console.log('[Expense] Response keys:', Object.keys(json));
         
         // Check what we got
-        const isExpenseData = !!(json.categories && json.summary);
-        const isDashboardData = !!(json.data && json.count);
-        console.log('[Expense] Is expense data?', isExpenseData);
-        console.log('[Expense] Is dashboard data?', isDashboardData);
-        
-        if (isExpenseData) {
-            console.log('[Expense] ✓ SUCCESS - got expense data');
+        if (json.categories && json.summary) {
+            console.log('[Expense] ✓ Got expense data');
             expenseCache[month] = json;
             return json;
-        } else if (isDashboardData) {
-            console.error('[Expense] ✗ FAILED - got dashboard data instead!');
-            console.error('[Expense] The URL was:', apiUrlWithAction);
-            console.error('[Expense] Your Code.gs may not be deployed or has old version');
+        } else if (json.data) {
+            console.error('[Expense] ✗ Got dashboard data instead');
             return { success: false, error: 'Got dashboard data - redeploy Code.gs' };
         } else {
-            console.warn('[Expense] ✗ Unknown response type');
             return { success: false, error: json.error || 'Unknown response' };
         }
     } catch (err) {
-        console.error('[Expense] Fetch error:', err);
+        console.error('[Expense] Fetch error:', err.message);
         return { success: false, error: err.message };
     }
 }
@@ -1057,24 +1001,21 @@ async function prefetchExpenseData() {
         months.push(getMonthKey(currentYear, m));
     }
     
-    console.log('[Expense] Prefetching months:', months);
+    console.log('[Expense] Prefetching:', months);
     
     try {
         const results = await Promise.all(months.map(m => fetchExpenseData(m)));
-        console.log('[Expense] All fetch results:', results);
-        
         currentExpenseData = aggregateExpenseData(results);
-        console.log('[Expense] Aggregated data:', currentExpenseData);
         
-        if (currentExpenseData && currentExpenseData.success) {
-            console.log('[Expense] Success! Updating table...');
+        if (currentExpenseData && currentExpenseData.success !== false && currentExpenseData.categories) {
+            console.log('[Expense] ✓ Data loaded');
             updateExpenseTable();
         } else {
-            console.warn('[Expense] Failed:', currentExpenseData?.error);
-            updateExpenseTableError(currentExpenseData?.error || 'No expense data returned');
+            console.warn('[Expense] ✗', currentExpenseData?.error);
+            updateExpenseTableError(currentExpenseData?.error || 'No expense data');
         }
     } catch (err) {
-        console.error('[Expense] Prefetch error:', err);
+        console.error('[Expense] Error:', err);
         currentExpenseData = null;
         updateExpenseTableError(err.message);
     } finally {
@@ -1847,38 +1788,18 @@ async function showExpenseModal() {
 
 function aggregateExpenseData(results) {
     try {
-        console.log('[Expense] Aggregating', results?.length || 0, 'results');
-        
         if (!results || results.length === 0) {
-            console.warn('[Expense] No results to aggregate');
             return { success: false, error: 'No data' };
         }
         
-        // Log each result's validation status
-        results.forEach((r, i) => {
-            console.log(`[Expense] Result ${i}:`, {
-                exists: !!r,
-                success: r?.success,
-                hasCategories: !!r?.categories,
-                categoriesLength: r?.categories?.length,
-                hasSummary: !!r?.summary,
-                error: r?.error
-            });
-        });
+        // Filter to only successful results with valid expense data
+        const validResults = results.filter(r => r && r.success !== false && r.categories && r.summary);
         
-        // Filter to only successful results with valid data
-        const validResults = results.filter(r => r && r.success && r.categories && r.summary);
-        
-        console.log('[Expense] Valid results after filter:', validResults.length, 'of', results.length);
+        console.log('[Expense] Valid results:', validResults.length, 'of', results.length);
         
         if (validResults.length === 0) {
-            // Return the first result's error if available, otherwise generic error
-            const firstResult = results[0];
-            console.warn('[Expense] No valid results. First result:', firstResult);
-            if (firstResult && !firstResult.success) {
-                return firstResult;
-            }
-            return { success: false, error: 'No valid expense data from ShadowLedger' };
+            const firstErr = results[0]?.error || 'No valid expense data';
+            return { success: false, error: firstErr };
         }
         
         if (validResults.length === 1) return validResults[0];
