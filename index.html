@@ -794,6 +794,18 @@ document.addEventListener('DOMContentLoaded', init);
 function init() {
     console.log('[Init] API_URL from localStorage:', API_URL);
     
+    // Clean up API_URL if it has action parameter embedded
+    if (API_URL && API_URL.includes('action=')) {
+        console.log('[Init] Cleaning API_URL - removing embedded action parameter');
+        let cleanUrl = API_URL;
+        cleanUrl = cleanUrl.replace(/[?&]action=[^&]*/g, '');
+        cleanUrl = cleanUrl.replace(/\?&/, '?');
+        cleanUrl = cleanUrl.replace(/\?$/, '');
+        localStorage.setItem('sankey_api_url', cleanUrl);
+        API_URL = cleanUrl;
+        console.log('[Init] Cleaned API_URL:', API_URL);
+    }
+    
     if (API_URL) {
         document.getElementById('setupBanner').classList.add('hidden');
         refreshData();
@@ -820,13 +832,21 @@ function init() {
 }
 
 function saveApiUrl() {
-    const url = document.getElementById('apiUrlInput').value.trim();
+    let url = document.getElementById('apiUrlInput').value.trim();
     if (!url.startsWith('https://script.google.com/')) {
         alert('Please enter a valid Google Apps Script URL');
         return;
     }
+    
+    // Clean URL - remove any action parameters
+    url = url.replace(/[?&]action=[^&]*/g, '');
+    url = url.replace(/\?&/, '?');
+    url = url.replace(/\?$/, '');
+    
     API_URL = url;
     localStorage.setItem('sankey_api_url', url);
+    console.log('[Init] Saved clean API_URL:', url);
+    
     document.getElementById('setupBanner').classList.add('hidden');
     document.getElementById('controls').classList.remove('hidden');
     refreshData();
@@ -899,7 +919,15 @@ async function refreshData() {
     document.getElementById('sankey').innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading live data...</span></div>';
     
     try {
-        const apiUrlWithAction = API_URL.includes('?') ? `${API_URL}&action=dashboard` : `${API_URL}?action=dashboard`;
+        // Strip any existing action parameter from the URL
+        let baseUrl = API_URL;
+        baseUrl = baseUrl.replace(/[?&]action=[^&]*/g, '');
+        baseUrl = baseUrl.replace(/\?&/, '?');
+        baseUrl = baseUrl.replace(/\?$/, '');
+        
+        const apiUrlWithAction = baseUrl.includes('?') ? `${baseUrl}&action=dashboard` : `${baseUrl}?action=dashboard`;
+        console.log('[Dashboard] Fetching:', apiUrlWithAction);
+        
         const res = await fetch(apiUrlWithAction);
         const json = await res.json();
         
@@ -930,10 +958,17 @@ async function fetchExpenseData(month) {
     }
     
     try {
-        const apiUrlWithAction = API_URL.includes('?') 
-            ? `${API_URL}&action=expenses&month=${month}` 
-            : `${API_URL}?action=expenses&month=${month}`;
+        // Strip any existing action parameter from the URL
+        let baseUrl = API_URL;
+        baseUrl = baseUrl.replace(/[?&]action=[^&]*/g, '');  // Remove action=xxx
+        baseUrl = baseUrl.replace(/\?&/, '?');  // Fix ?& to just ?
+        baseUrl = baseUrl.replace(/\?$/, '');   // Remove trailing ?
         
+        const apiUrlWithAction = baseUrl.includes('?') 
+            ? `${baseUrl}&action=expenses&month=${month}` 
+            : `${baseUrl}?action=expenses&month=${month}`;
+        
+        console.log('[Expense] Base URL:', baseUrl);
         console.log('[Expense] Fetching:', apiUrlWithAction);
         
         // Google Apps Script requires redirect follow for proper response
@@ -962,9 +997,14 @@ async function fetchExpenseData(month) {
         
         console.log('[Expense] Parsed response for', month, ':', json);
         
-        if (json.success) {
+        if (json.success && json.categories && json.summary) {
             expenseCache[month] = json;
             return json;
+        } else if (json.success && json.data) {
+            // Got dashboard data instead of expense data - wrong endpoint!
+            console.error('[Expense] ERROR: Got dashboard data instead of expense data!');
+            console.error('[Expense] This means the action=expenses parameter was ignored.');
+            return { success: false, error: 'API returned dashboard data instead of expenses. Check API URL.' };
         } else {
             console.warn('[Expense] API returned error:', json.error);
             return { success: false, error: json.error || 'Failed to load expense data' };
