@@ -930,16 +930,23 @@ async function fetchExpenseData(month) {
         const apiUrlWithAction = API_URL.includes('?') 
             ? `${API_URL}&action=expenses&month=${month}` 
             : `${API_URL}?action=expenses&month=${month}`;
+        
+        console.log('[Expense] Fetching:', apiUrlWithAction);
+        
         const res = await fetch(apiUrlWithAction);
         const json = await res.json();
+        
+        console.log('[Expense] Response for', month, ':', json);
         
         if (json.success) {
             expenseCache[month] = json;
             return json;
         } else {
+            console.warn('[Expense] API returned error:', json.error);
             return { success: false, error: json.error || 'Failed to load expense data' };
         }
     } catch (err) {
+        console.error('[Expense] Fetch error:', err);
         return { success: false, error: err.message };
     }
 }
@@ -1735,6 +1742,8 @@ async function showExpenseModal() {
 
 function aggregateExpenseData(results) {
     try {
+        console.log('[Expense] Aggregating results:', results);
+        
         if (!results || results.length === 0) {
             return { success: false, error: 'No data' };
         }
@@ -1742,9 +1751,12 @@ function aggregateExpenseData(results) {
         // Filter to only successful results with valid data
         const validResults = results.filter(r => r && r.success && r.categories && r.summary);
         
+        console.log('[Expense] Valid results after filter:', validResults.length, 'of', results.length);
+        
         if (validResults.length === 0) {
             // Return the first result's error if available, otherwise generic error
             const firstResult = results[0];
+            console.warn('[Expense] No valid results. First result:', firstResult);
             if (firstResult && !firstResult.success) {
                 return firstResult;
             }
