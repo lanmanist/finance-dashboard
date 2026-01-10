@@ -794,6 +794,10 @@ document.addEventListener('DOMContentLoaded', init);
 function init() {
     console.log('[Init] API_URL from localStorage:', API_URL);
     
+    // ALWAYS clear expense cache on init to prevent stale data issues
+    expenseCache = {};
+    console.log('[Init] Cleared expense cache');
+    
     // Clean up API_URL if it has action parameter embedded
     if (API_URL && API_URL.includes('action=')) {
         console.log('[Init] Cleaning API_URL - removing embedded action parameter');
@@ -910,10 +914,15 @@ async function refreshData() {
         return;
     }
     
+    // Clear expense cache on refresh
+    expenseCache = {};
+    currentExpenseData = null;
+    console.log('[Dashboard] Cleared expense cache');
+    
     const statusDot = document.getElementById('statusDot');
     const statusText = document.getElementById('statusText');
     
-    setRefreshButtonLoading(true); // NEW in v3.1
+    setRefreshButtonLoading(true);
     statusDot.className = 'status-dot';
     statusText.textContent = 'Connecting to Google Sheets...';
     document.getElementById('sankey').innerHTML = '<div class="loading"><div class="spinner"></div><span>Loading live data...</span></div>';
@@ -952,62 +961,86 @@ async function refreshData() {
 }
 
 async function fetchExpenseData(month) {
-    if (expenseCache[month]) {
-        console.log('[Expense] Cache hit for', month);
+    // Check cache - but validate it has the right structure
+    if (expenseCache[month] && expenseCache[month].categories && expenseCache[month].summary) {
+        console.log('[Expense] Valid cache hit for', month);
         return expenseCache[month];
+    } else if (expenseCache[month]) {
+        console.log('[Expense] Invalid cache entry for', month, '- refetching');
+        delete expenseCache[month];
     }
     
     try {
-        // Strip any existing action parameter from the URL
+        // Strip any existing action parameter from the URL - with detailed logging
+        console.log('[Expense] Original API_URL:', API_URL);
+        console.log('[Expense] API_URL length:', API_URL.length);
+        console.log('[Expense] Contains action=?', API_URL.includes('action='));
+        console.log('[Expense] Contains ?:', API_URL.includes('?'));
+        
         let baseUrl = API_URL;
-        baseUrl = baseUrl.replace(/[?&]action=[^&]*/g, '');  // Remove action=xxx
-        baseUrl = baseUrl.replace(/\?&/, '?');  // Fix ?& to just ?
-        baseUrl = baseUrl.replace(/\?$/, '');   // Remove trailing ?
         
-        const apiUrlWithAction = baseUrl.includes('?') 
-            ? `${baseUrl}&action=expenses&month=${month}` 
-            : `${baseUrl}?action=expenses&month=${month}`;
+        // Step by step cleanup with logging
+        const step1 = baseUrl.replace(/[?&]action=[^&]*/g, '');
+        console.log('[Expense] After removing action=:', step1);
         
-        console.log('[Expense] Base URL:', baseUrl);
-        console.log('[Expense] Fetching:', apiUrlWithAction);
+        const step2 = step1.replace(/\?&/, '?');
+        console.log('[Expense] After fixing ?&:', step2);
         
-        // Google Apps Script requires redirect follow for proper response
+        const step3 = step2.replace(/\?$/, '');
+        console.log('[Expense] After removing trailing ?:', step3);
+        
+        baseUrl = step3;
+        
+        // Add cache-busting timestamp
+        const cacheBust = Date.now();
+        const separator = baseUrl.includes('?') ? '&' : '?';
+        const apiUrlWithAction = `${baseUrl}${separator}action=expenses&month=${month}&_=${cacheBust}`;
+        
+        console.log('[Expense] FINAL URL:', apiUrlWithAction);
+        console.log('[Expense] URL contains action=expenses?', apiUrlWithAction.includes('action=expenses'));
+        
         const res = await fetch(apiUrlWithAction, {
             method: 'GET',
             redirect: 'follow',
+            cache: 'no-store',
             headers: {
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'Cache-Control': 'no-cache'
             }
         });
         
-        console.log('[Expense] Response status:', res.status, res.statusText);
+        console.log('[Expense] Response status:', res.status);
         
         const text = await res.text();
-        console.log('[Expense] Raw response length:', text.length, 'chars');
-        console.log('[Expense] Raw response preview:', text.substring(0, 200));
+        console.log('[Expense] Response length:', text.length, '(expense data should be ~2000, dashboard is ~365000)');
+        console.log('[Expense] Response start:', text.substring(0, 100));
         
         let json;
         try {
             json = JSON.parse(text);
         } catch (parseErr) {
             console.error('[Expense] JSON parse error:', parseErr);
-            console.error('[Expense] Response was:', text.substring(0, 500));
-            return { success: false, error: 'Invalid JSON response from API' };
+            return { success: false, error: 'Invalid JSON response' };
         }
         
-        console.log('[Expense] Parsed response for', month, ':', json);
+        // Check what we got
+        const isExpenseData = !!(json.categories && json.summary);
+        const isDashboardData = !!(json.data && json.count);
+        console.log('[Expense] Is expense data?', isExpenseData);
+        console.log('[Expense] Is dashboard data?', isDashboardData);
         
-        if (json.success && json.categories && json.summary) {
+        if (isExpenseData) {
+            console.log('[Expense] ✓ SUCCESS - got expense data');
             expenseCache[month] = json;
             return json;
-        } else if (json.success && json.data) {
-            // Got dashboard data instead of expense data - wrong endpoint!
-            console.error('[Expense] ERROR: Got dashboard data instead of expense data!');
-            console.error('[Expense] This means the action=expenses parameter was ignored.');
-            return { success: false, error: 'API returned dashboard data instead of expenses. Check API URL.' };
+        } else if (isDashboardData) {
+            console.error('[Expense] ✗ FAILED - got dashboard data instead!');
+            console.error('[Expense] The URL was:', apiUrlWithAction);
+            console.error('[Expense] Your Code.gs may not be deployed or has old version');
+            return { success: false, error: 'Got dashboard data - redeploy Code.gs' };
         } else {
-            console.warn('[Expense] API returned error:', json.error);
-            return { success: false, error: json.error || 'Failed to load expense data' };
+            console.warn('[Expense] ✗ Unknown response type');
+            return { success: false, error: json.error || 'Unknown response' };
         }
     } catch (err) {
         console.error('[Expense] Fetch error:', err);
