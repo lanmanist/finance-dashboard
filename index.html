@@ -444,6 +444,86 @@
             padding: 20px;
         }
         
+        /* Expense Table Styles */
+        .expense-table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 24px;
+        }
+        .expense-table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .expense-table-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0;
+        }
+        .expense-table-period {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        .expense-table-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+        .expense-table-error {
+            text-align: center;
+            padding: 40px;
+            color: var(--accent-red);
+            background: rgba(239, 68, 68, 0.1);
+            border-radius: 8px;
+        }
+        .expense-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .expense-table th,
+        .expense-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        .expense-table th {
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .expense-table .text-right {
+            text-align: right;
+        }
+        .expense-table tbody tr:hover {
+            background: rgba(59, 130, 246, 0.05);
+        }
+        .expense-table tfoot td {
+            font-weight: 600;
+            background: var(--bg-secondary);
+            border-top: 2px solid var(--border);
+        }
+        .expense-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .expense-status.green { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+        .expense-status.yellow { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+        .expense-status.orange { background: rgba(249, 115, 22, 0.2); color: var(--accent-orange); }
+        .expense-status.red { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .expense-status.na { background: rgba(100, 116, 139, 0.2); color: var(--text-muted); }
+        
         /* Debt Detail Styles */
         .debt-section {
             margin-bottom: 20px;
@@ -591,6 +671,32 @@
             </div>
             <div id="sankey"></div>
             <div class="legend" id="legend"></div>
+        </div>
+        
+        <!-- Expense Table Section -->
+        <div class="expense-table-container" id="expenseTableContainer">
+            <div class="expense-table-header">
+                <h3>📋 Expense Summary</h3>
+                <span class="expense-table-period" id="expenseTablePeriod"></span>
+            </div>
+            <div class="expense-table-loading" id="expenseTableLoading">
+                <div class="spinner"></div>
+                <span>Loading expense data...</span>
+            </div>
+            <div class="expense-table-error" id="expenseTableError" style="display: none;"></div>
+            <table class="expense-table" id="expenseTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th class="text-right">Spent</th>
+                        <th class="text-right">Budget</th>
+                        <th class="text-right">%</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="expenseTableBody"></tbody>
+                <tfoot id="expenseTableFoot"></tfoot>
+            </table>
         </div>
     </div>
     
@@ -839,7 +945,8 @@ async function fetchExpenseData(month) {
 }
 
 async function prefetchExpenseData() {
-    showExpenseLoadingIndicator(true); // NEW in v3.1
+    showExpenseLoadingIndicator(true);
+    updateExpenseTableLoading(true);
     
     const months = [];
     for (let m = monthFrom; m <= monthTo; m++) {
@@ -849,11 +956,128 @@ async function prefetchExpenseData() {
     try {
         const results = await Promise.all(months.map(m => fetchExpenseData(m)));
         currentExpenseData = aggregateExpenseData(results);
+        if (currentExpenseData && currentExpenseData.success) {
+            updateExpenseTable();
+        } else {
+            updateExpenseTableError(currentExpenseData?.error || 'No expense data returned');
+        }
     } catch (err) {
+        console.error('Expense prefetch error:', err);
         currentExpenseData = null;
+        updateExpenseTableError(err.message);
     } finally {
-        showExpenseLoadingIndicator(false); // NEW in v3.1
+        showExpenseLoadingIndicator(false);
     }
+}
+
+// ============ EXPENSE TABLE FUNCTIONS ============
+
+function updateExpenseTableLoading(show) {
+    const loading = document.getElementById('expenseTableLoading');
+    const table = document.getElementById('expenseTable');
+    const error = document.getElementById('expenseTableError');
+    
+    if (show) {
+        loading.style.display = 'flex';
+        table.style.display = 'none';
+        error.style.display = 'none';
+    } else {
+        loading.style.display = 'none';
+    }
+}
+
+function updateExpenseTableError(message) {
+    const loading = document.getElementById('expenseTableLoading');
+    const table = document.getElementById('expenseTable');
+    const error = document.getElementById('expenseTableError');
+    
+    loading.style.display = 'none';
+    table.style.display = 'none';
+    error.style.display = 'block';
+    error.innerHTML = `⚠️ ${message || 'Failed to load expense data'}`;
+}
+
+function updateExpenseTable() {
+    const loading = document.getElementById('expenseTableLoading');
+    const table = document.getElementById('expenseTable');
+    const error = document.getElementById('expenseTableError');
+    const tbody = document.getElementById('expenseTableBody');
+    const tfoot = document.getElementById('expenseTableFoot');
+    const period = document.getElementById('expenseTablePeriod');
+    
+    loading.style.display = 'none';
+    error.style.display = 'none';
+    
+    if (!currentExpenseData || !currentExpenseData.success) {
+        updateExpenseTableError(currentExpenseData?.error || 'No expense data available');
+        return;
+    }
+    
+    if (!currentExpenseData.categories || !currentExpenseData.summary) {
+        updateExpenseTableError('Expense data incomplete - check ShadowLedger configuration');
+        return;
+    }
+    
+    // Set period text
+    period.textContent = currentExpenseData.month_name || '';
+    
+    // Build table body
+    let html = '';
+    currentExpenseData.categories.forEach(cat => {
+        if (!cat) return;
+        if (cat.spent === 0 && (!cat.budget || cat.budget === 0)) return;
+        
+        const budgetStr = cat.budget !== null ? fmt(cat.budget) : '—';
+        const percentStr = cat.percent !== null ? `${cat.percent}%` : '—';
+        const statusClass = getExpenseStatusClass(cat.percent);
+        const statusText = getExpenseStatusText(cat.percent);
+        
+        html += `
+            <tr>
+                <td>${cat.name || 'Unknown'}</td>
+                <td class="text-right">${fmt(cat.spent || 0)}</td>
+                <td class="text-right">${budgetStr}</td>
+                <td class="text-right">${percentStr}</td>
+                <td><span class="expense-status ${statusClass}">${statusText}</span></td>
+            </tr>
+        `;
+    });
+    tbody.innerHTML = html;
+    
+    // Build footer totals
+    const summary = currentExpenseData.summary;
+    const totalBudget = summary.total_budget ? fmt(summary.total_budget) : '—';
+    const totalPercent = summary.total_percent !== null && summary.total_percent !== undefined ? `${summary.total_percent}%` : '—';
+    const totalStatusClass = getExpenseStatusClass(summary.total_percent);
+    const totalStatusText = getExpenseStatusText(summary.total_percent);
+    
+    tfoot.innerHTML = `
+        <tr>
+            <td><strong>Total</strong> (${summary.transaction_count || 0} txns)</td>
+            <td class="text-right">${fmt(summary.total_spent || 0)}</td>
+            <td class="text-right">${totalBudget}</td>
+            <td class="text-right">${totalPercent}</td>
+            <td><span class="expense-status ${totalStatusClass}">${totalStatusText}</span></td>
+        </tr>
+    `;
+    
+    table.style.display = 'table';
+}
+
+function getExpenseStatusClass(percent) {
+    if (percent === null || percent === undefined) return 'na';
+    if (percent >= 100) return 'red';
+    if (percent >= 80) return 'orange';
+    if (percent >= 50) return 'yellow';
+    return 'green';
+}
+
+function getExpenseStatusText(percent) {
+    if (percent === null || percent === undefined) return 'N/A';
+    if (percent >= 100) return 'Over Budget';
+    if (percent >= 80) return 'Warning';
+    if (percent >= 50) return 'On Track';
+    return 'Good';
 }
 
 // ============ UI HELPERS ============
@@ -1510,62 +1734,82 @@ async function showExpenseModal() {
 }
 
 function aggregateExpenseData(results) {
-    if (results.length === 0 || !results[0].success) {
-        return results[0] || { success: false, error: 'No data' };
-    }
-    
-    if (results.length === 1) return results[0];
-    
-    const agg = {
-        success: true,
-        month: `${results[0].month} - ${results[results.length-1].month}`,
-        month_name: `${results[0].month_name} - ${results[results.length-1].month_name}`,
-        categories: [],
-        summary: {
-            total_spent: 0,
-            total_budget: 0,
-            transaction_count: 0,
-            budget_available: false
+    try {
+        if (!results || results.length === 0) {
+            return { success: false, error: 'No data' };
         }
-    };
-    
-    const catMap = {};
-    
-    results.forEach(r => {
-        if (!r.success) return;
         
-        r.categories.forEach(cat => {
-            if (!catMap[cat.name]) {
-                catMap[cat.name] = { name: cat.name, spent: 0, budget: 0, hasBudget: false };
+        // Filter to only successful results with valid data
+        const validResults = results.filter(r => r && r.success && r.categories && r.summary);
+        
+        if (validResults.length === 0) {
+            // Return the first result's error if available, otherwise generic error
+            const firstResult = results[0];
+            if (firstResult && !firstResult.success) {
+                return firstResult;
             }
-            catMap[cat.name].spent += cat.spent;
-            if (cat.budget !== null) {
-                catMap[cat.name].budget += cat.budget;
-                catMap[cat.name].hasBudget = true;
+            return { success: false, error: 'No valid expense data from ShadowLedger' };
+        }
+        
+        if (validResults.length === 1) return validResults[0];
+        
+        const agg = {
+            success: true,
+            month: `${validResults[0].month || ''} - ${validResults[validResults.length-1].month || ''}`,
+            month_name: `${validResults[0].month_name || ''} - ${validResults[validResults.length-1].month_name || ''}`,
+            categories: [],
+            summary: {
+                total_spent: 0,
+                total_budget: 0,
+                transaction_count: 0,
+                budget_available: false
+            }
+        };
+        
+        const catMap = {};
+        
+        validResults.forEach(r => {
+            if (r.categories && Array.isArray(r.categories)) {
+                r.categories.forEach(cat => {
+                    if (!cat || !cat.name) return;
+                    if (!catMap[cat.name]) {
+                        catMap[cat.name] = { name: cat.name, spent: 0, budget: 0, hasBudget: false };
+                    }
+                    catMap[cat.name].spent += cat.spent || 0;
+                    if (cat.budget !== null && cat.budget !== undefined) {
+                        catMap[cat.name].budget += cat.budget;
+                        catMap[cat.name].hasBudget = true;
+                    }
+                });
+            }
+            
+            if (r.summary) {
+                agg.summary.total_spent += r.summary.total_spent || 0;
+                if (r.summary.total_budget) {
+                    agg.summary.total_budget += r.summary.total_budget;
+                    agg.summary.budget_available = true;
+                }
+                agg.summary.transaction_count += r.summary.transaction_count || 0;
             }
         });
         
-        agg.summary.total_spent += r.summary.total_spent;
-        if (r.summary.total_budget) {
-            agg.summary.total_budget += r.summary.total_budget;
-            agg.summary.budget_available = true;
+        agg.categories = Object.values(catMap).map(cat => ({
+            name: cat.name,
+            spent: cat.spent,
+            budget: cat.hasBudget ? cat.budget : null,
+            percent: cat.hasBudget && cat.budget > 0 ? Math.round((cat.spent / cat.budget) * 100) : null,
+            status: cat.hasBudget && cat.budget > 0 ? getStatusEmoji(Math.round((cat.spent / cat.budget) * 100)) : 'N/A'
+        })).sort((a, b) => b.spent - a.spent);
+        
+        if (agg.summary.budget_available && agg.summary.total_budget > 0) {
+            agg.summary.total_percent = Math.round((agg.summary.total_spent / agg.summary.total_budget) * 100);
         }
-        agg.summary.transaction_count += r.summary.transaction_count;
-    });
-    
-    agg.categories = Object.values(catMap).map(cat => ({
-        name: cat.name,
-        spent: cat.spent,
-        budget: cat.hasBudget ? cat.budget : null,
-        percent: cat.hasBudget && cat.budget > 0 ? Math.round((cat.spent / cat.budget) * 100) : null,
-        status: cat.hasBudget && cat.budget > 0 ? getStatusEmoji(Math.round((cat.spent / cat.budget) * 100)) : 'N/A'
-    })).sort((a, b) => b.spent - a.spent);
-    
-    if (agg.summary.budget_available && agg.summary.total_budget > 0) {
-        agg.summary.total_percent = Math.round((agg.summary.total_spent / agg.summary.total_budget) * 100);
+        
+        return agg;
+    } catch (err) {
+        console.error('Error aggregating expense data:', err);
+        return { success: false, error: 'Error processing expense data: ' + err.message };
     }
-    
-    return agg;
 }
 
 function getStatusEmoji(percent) {
@@ -1585,57 +1829,76 @@ function getBarColor(percent) {
 function renderExpenseModalContent(data, isMultiMonth) {
     const content = document.getElementById('expenseModalContent');
     
-    if (!data.success) {
-        content.innerHTML = `<div class="error">${data.error || 'Failed to load data'}</div>`;
-        return;
-    }
-    
-    if (!data.summary || !data.summary.budget_available) {
-        content.innerHTML = `
-            <div class="budget-na">
-                <p>📊 <strong>${data.month_name}</strong></p>
-                <p style="margin-top: 12px;">Budget data not available for this period.</p>
-                <p style="margin-top: 8px; font-size: 12px;">Total spent: ${fmt(data.summary.total_spent)} (${data.summary.transaction_count} transactions)</p>
-                <p style="margin-top: 16px; font-size: 12px;">To enable budget tracking, add rows for this month in the SL_Budget tab.</p>
-            </div>
-        `;
-        return;
-    }
-    
-    let html = `<p style="margin-bottom: 16px; color: var(--text-secondary);">📅 ${data.month_name} • ${data.summary.transaction_count} transactions</p>`;
-    
-    data.categories.forEach(cat => {
-        if (cat.spent === 0 && (!cat.budget || cat.budget === 0)) return;
+    try {
+        if (!data || !data.success) {
+            content.innerHTML = `<div class="error">${data?.error || 'Failed to load data'}</div>`;
+            return;
+        }
         
-        const percent = cat.percent !== null ? cat.percent : 0;
-        const barWidth = Math.min(percent, 100);
-        const budgetStr = cat.budget !== null ? fmt(cat.budget) : 'N/A';
-        const percentStr = cat.percent !== null ? `${cat.percent}%` : 'N/A';
+        // Handle missing summary entirely
+        if (!data.summary) {
+            content.innerHTML = `
+                <div class="budget-na">
+                    <p>📊 <strong>${data.month_name || 'Unknown period'}</strong></p>
+                    <p style="margin-top: 12px;">No expense data available for this period.</p>
+                    <p style="margin-top: 16px; font-size: 12px;">Ensure ShadowLedger is configured and has transactions for this month.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        if (!data.summary.budget_available) {
+            content.innerHTML = `
+                <div class="budget-na">
+                    <p>📊 <strong>${data.month_name || 'Unknown period'}</strong></p>
+                    <p style="margin-top: 12px;">Budget data not available for this period.</p>
+                    <p style="margin-top: 8px; font-size: 12px;">Total spent: ${fmt(data.summary.total_spent || 0)} (${data.summary.transaction_count || 0} transactions)</p>
+                    <p style="margin-top: 16px; font-size: 12px;">To enable budget tracking, add rows for this month in the SL_Budget tab.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = `<p style="margin-bottom: 16px; color: var(--text-secondary);">📅 ${data.month_name || ''} • ${data.summary.transaction_count || 0} transactions</p>`;
+        
+        if (data.categories && Array.isArray(data.categories)) {
+            data.categories.forEach(cat => {
+                if (!cat || (cat.spent === 0 && (!cat.budget || cat.budget === 0))) return;
+                
+                const percent = cat.percent !== null ? cat.percent : 0;
+                const barWidth = Math.min(percent, 100);
+                const budgetStr = cat.budget !== null ? fmt(cat.budget) : 'N/A';
+                const percentStr = cat.percent !== null ? `${cat.percent}%` : 'N/A';
+                
+                html += `
+                    <div class="budget-item">
+                        <div class="budget-item-header">
+                            <span class="budget-item-name">${cat.status || ''} ${cat.name || 'Unknown'}</span>
+                            <span class="budget-item-values">${fmt(cat.spent || 0)} / ${budgetStr} (${percentStr})</span>
+                        </div>
+                        <div class="budget-bar">
+                            <div class="budget-bar-fill ${getBarColor(percent)}" style="width: ${barWidth}%"></div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        
+        const totalPercent = data.summary.total_percent !== null && data.summary.total_percent !== undefined ? `${data.summary.total_percent}%` : 'N/A';
+        const totalBudget = data.summary.total_budget ? fmt(data.summary.total_budget) : 'N/A';
         
         html += `
-            <div class="budget-item">
-                <div class="budget-item-header">
-                    <span class="budget-item-name">${cat.status} ${cat.name}</span>
-                    <span class="budget-item-values">${fmt(cat.spent)} / ${budgetStr} (${percentStr})</span>
-                </div>
-                <div class="budget-bar">
-                    <div class="budget-bar-fill ${getBarColor(percent)}" style="width: ${barWidth}%"></div>
-                </div>
+            <div class="budget-summary">
+                <span>Total</span>
+                <span>${fmt(data.summary.total_spent || 0)} / ${totalBudget} (${totalPercent})</span>
             </div>
         `;
-    });
-    
-    const totalPercent = data.summary.total_percent !== null ? `${data.summary.total_percent}%` : 'N/A';
-    const totalBudget = data.summary.total_budget ? fmt(data.summary.total_budget) : 'N/A';
-    
-    html += `
-        <div class="budget-summary">
-            <span>Total</span>
-            <span>${fmt(data.summary.total_spent)} / ${totalBudget} (${totalPercent})</span>
-        </div>
-    `;
-    
-    content.innerHTML = html;
+        
+        content.innerHTML = html;
+    } catch (err) {
+        console.error('Error rendering expense modal:', err);
+        content.innerHTML = `<div class="error">Error displaying expense data: ${err.message}</div>`;
+    }
 }
 
 function showDebtModal(type, debtDet) {
@@ -1745,7 +2008,7 @@ function showNodeTooltip(event, d) {
     // Show relevant details based on node type
     if (d.name === 'Expenses') {
         // Collapsed expenses node - show all categories on hover
-        if (currentExpenseData && currentExpenseData.success && currentExpenseData.categories) {
+        if (currentExpenseData && currentExpenseData.success && currentExpenseData.categories && currentExpenseData.summary) {
             html += `<div class="tooltip-divider"></div>`;
             html += `<div style="max-height: 350px; overflow-y: auto;">`;
             currentExpenseData.categories.forEach(cat => {
@@ -1757,7 +2020,7 @@ function showNodeTooltip(event, d) {
             html += `<div class="tooltip-divider"></div>`;
             const totalBudget = currentExpenseData.summary.total_budget ? fmt(currentExpenseData.summary.total_budget) : 'N/A';
             const totalPct = currentExpenseData.summary.total_percent !== null ? `(${currentExpenseData.summary.total_percent}%)` : '';
-            html += `<div class="tooltip-row" style="font-weight:600;"><span class="tooltip-label">TOTAL</span><span class="tooltip-value">${fmt(currentExpenseData.summary.total_spent)} / ${totalBudget} ${totalPct}</span></div>`;
+            html += `<div class="tooltip-row" style="font-weight:600;"><span class="tooltip-label">TOTAL</span><span class="tooltip-value">${fmt(currentExpenseData.summary.total_spent || 0)} / ${totalBudget} ${totalPct}</span></div>`;
             html += `<div class="tooltip-hint">Click for detailed view with budget bars</div>`;
         } else {
             html += `<div class="tooltip-hint">Click for category breakdown</div>`;
