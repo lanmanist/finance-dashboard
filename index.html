@@ -792,6 +792,8 @@ let currentExpenseData = null;
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
+    console.log('[Init] API_URL from localStorage:', API_URL);
+    
     if (API_URL) {
         document.getElementById('setupBanner').classList.add('hidden');
         refreshData();
@@ -923,6 +925,7 @@ async function refreshData() {
 
 async function fetchExpenseData(month) {
     if (expenseCache[month]) {
+        console.log('[Expense] Cache hit for', month);
         return expenseCache[month];
     }
     
@@ -933,10 +936,31 @@ async function fetchExpenseData(month) {
         
         console.log('[Expense] Fetching:', apiUrlWithAction);
         
-        const res = await fetch(apiUrlWithAction);
-        const json = await res.json();
+        // Google Apps Script requires redirect follow for proper response
+        const res = await fetch(apiUrlWithAction, {
+            method: 'GET',
+            redirect: 'follow',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
         
-        console.log('[Expense] Response for', month, ':', json);
+        console.log('[Expense] Response status:', res.status, res.statusText);
+        
+        const text = await res.text();
+        console.log('[Expense] Raw response length:', text.length, 'chars');
+        console.log('[Expense] Raw response preview:', text.substring(0, 200));
+        
+        let json;
+        try {
+            json = JSON.parse(text);
+        } catch (parseErr) {
+            console.error('[Expense] JSON parse error:', parseErr);
+            console.error('[Expense] Response was:', text.substring(0, 500));
+            return { success: false, error: 'Invalid JSON response from API' };
+        }
+        
+        console.log('[Expense] Parsed response for', month, ':', json);
         
         if (json.success) {
             expenseCache[month] = json;
@@ -960,16 +984,24 @@ async function prefetchExpenseData() {
         months.push(getMonthKey(currentYear, m));
     }
     
+    console.log('[Expense] Prefetching months:', months);
+    
     try {
         const results = await Promise.all(months.map(m => fetchExpenseData(m)));
+        console.log('[Expense] All fetch results:', results);
+        
         currentExpenseData = aggregateExpenseData(results);
+        console.log('[Expense] Aggregated data:', currentExpenseData);
+        
         if (currentExpenseData && currentExpenseData.success) {
+            console.log('[Expense] Success! Updating table...');
             updateExpenseTable();
         } else {
+            console.warn('[Expense] Failed:', currentExpenseData?.error);
             updateExpenseTableError(currentExpenseData?.error || 'No expense data returned');
         }
     } catch (err) {
-        console.error('Expense prefetch error:', err);
+        console.error('[Expense] Prefetch error:', err);
         currentExpenseData = null;
         updateExpenseTableError(err.message);
     } finally {
@@ -1742,11 +1774,24 @@ async function showExpenseModal() {
 
 function aggregateExpenseData(results) {
     try {
-        console.log('[Expense] Aggregating results:', results);
+        console.log('[Expense] Aggregating', results?.length || 0, 'results');
         
         if (!results || results.length === 0) {
+            console.warn('[Expense] No results to aggregate');
             return { success: false, error: 'No data' };
         }
+        
+        // Log each result's validation status
+        results.forEach((r, i) => {
+            console.log(`[Expense] Result ${i}:`, {
+                exists: !!r,
+                success: r?.success,
+                hasCategories: !!r?.categories,
+                categoriesLength: r?.categories?.length,
+                hasSummary: !!r?.summary,
+                error: r?.error
+            });
+        });
         
         // Filter to only successful results with valid data
         const validResults = results.filter(r => r && r.success && r.categories && r.summary);
@@ -2108,8 +2153,33 @@ function showNodeTooltip(event, d) {
 
 function moveTooltip(event) {
     const tooltip = document.getElementById('tooltip');
-    const x = event.pageX + 15;
-    const y = event.pageY - 10;
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const padding = 15;
+    
+    // Use clientX/clientY for fixed positioning
+    let x = event.clientX + padding;
+    let y = event.clientY - padding;
+    
+    // Prevent tooltip from going off-screen right
+    if (x + tooltipRect.width > window.innerWidth - padding) {
+        x = event.clientX - tooltipRect.width - padding;
+    }
+    
+    // Prevent tooltip from going off-screen bottom
+    if (y + tooltipRect.height > window.innerHeight - padding) {
+        y = window.innerHeight - tooltipRect.height - padding;
+    }
+    
+    // Prevent tooltip from going off-screen top
+    if (y < padding) {
+        y = padding;
+    }
+    
+    // Prevent tooltip from going off-screen left
+    if (x < padding) {
+        x = padding;
+    }
+    
     tooltip.style.left = `${x}px`;
     tooltip.style.top = `${y}px`;
 }
