@@ -169,18 +169,18 @@ function logMultipleExpenses(lines, username) {
       if (result.success) {
         successCount++;
         totalAmount += result.amount;
-        results.push(`✦ €${result.amount.toFixed(2)} → ${result.category}`);
+        results.push(`âœ¦ â‚¬${result.amount.toFixed(2)} â†’ ${result.category}`);
         if (!categorySpending[result.category]) {
           categorySpending[result.category] = 0;
         }
         categorySpending[result.category] += result.amount;
       } else {
         failCount++;
-        results.push(`❌ "${line.substring(0, 20)}..." - ${result.error}`);
+        results.push(`âŒ "${line.substring(0, 20)}..." - ${result.error}`);
       }
     } catch (e) {
       failCount++;
-      results.push(`❌ "${line.substring(0, 20)}..." - Error`);
+      results.push(`âŒ "${line.substring(0, 20)}..." - Error`);
     }
   }
   
@@ -188,17 +188,17 @@ function logMultipleExpenses(lines, username) {
   let budgetLines = [];
   for (const cat of Object.keys(categorySpending)) {
     const status = calculateBudgetStatus(cat, monthKey);
-    budgetLines.push(`${status.status} ${cat}: €${status.spent.toFixed(0)}/€${status.budget} (${(status.percent * 100).toFixed(0)}%)`);
+    budgetLines.push(`${status.status} ${cat}: â‚¬${status.spent.toFixed(0)}/â‚¬${status.budget} (${(status.percent * 100).toFixed(0)}%)`);
   }
   
-  let response = `📋 **BATCH LOGGED** (${successCount}/${lines.length})
-─────────────────────────────
+  let response = `ðŸ“‹ **BATCH LOGGED** (${successCount}/${lines.length})
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ${results.join('\n')}
-─────────────────────────────
-**Total:** €${totalAmount.toFixed(2)}`;
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+**Total:** â‚¬${totalAmount.toFixed(2)}`;
 
   if (budgetLines.length > 0) {
-    response += `\n\n📊 **Budget Status:**\n${budgetLines.join('\n')}`;
+    response += `\n\nðŸ“Š **Budget Status:**\n${budgetLines.join('\n')}`;
   }
   
   sendDiscordMessage(response);
@@ -212,24 +212,24 @@ function handleCommand(message, username) {
   if (cmd === '!help') {
     const helpText = `**ShadowLedger v2.2 Commands**
 
-📍 **Expense Logging (flexible format):**
+ðŸ“ **Expense Logging (flexible format):**
 Any order works! Examples:
-• 45 rewe
-• rewe 45€ wife yesterday
-• 27 lidl 01.03 husband
+â€¢ 45 rewe
+â€¢ rewe 45â‚¬ wife yesterday
+â€¢ 27 lidl 01.03 husband
 
-📦 **Multi-line batch:**
+ðŸ“¦ **Multi-line batch:**
 Use Shift+Enter for line breaks
 
-👤 **Spender names:**
+ðŸ‘¤ **Spender names:**
 H: h, husband, nha, anh, aaron
 W: w, wife, trang, chang, em
 
-📆 **Dates:**
+ðŸ“† **Dates:**
 yesterday, today, tomorrow
 06.03, 6/3, march 6
 
-📋 **Expense Commands:**
+ðŸ“‹ **Expense Commands:**
 !status - Monthly budget table
 !budgetleft - Remaining budget
 !ytd - Year to date table
@@ -237,18 +237,18 @@ yesterday, today, tomorrow
 !week - This week's expenses
 !undo - Delete last transaction
 
-💰 **Income Commands:**
+ðŸ’° **Income Commands:**
 !income 4200 salary h - Log H net salary
 !income 3800 salary w - Log W net salary
 !income 1200 youtube - Log YT gross
 !income 50 other payback - Log other income
 !income status - Check what's missing
 
-⏱️ **Time Account:**
+â±ï¸ **Time Account:**
 !ta 45 h - Log H hours added
 !ta 38 w - Log W hours added
 
-📈 **Investment Commands (NEW):**
+ðŸ“ˆ **Investment Commands (NEW):**
 !invest 500 scalable - Log transfer
 !invest 1000 revolut ETF purchase
 !invest status - This month's transfers
@@ -306,7 +306,7 @@ yesterday, today, tomorrow
     return handleInvestCommand(message, username);
   }
   
-  sendDiscordMessage('❌ Unknown command. Type !help for available commands.');
+  sendDiscordMessage('âŒ Unknown command. Type !help for available commands.');
   return { success: false, error: 'Unknown command' };
 }
 
@@ -316,13 +316,13 @@ function handleInvestCommand(message, username) {
   const parts = message.trim().split(/\s+/);
   
   if (parts.length < 3) {
-    sendDiscordMessage(`❌ **Format:** !invest [amount] [destination] [notes]
+    sendDiscordMessage(`âŒ **Format:** !invest [amount] [destination] [notes]
 
 **Destinations:** scalable, revolut, comdirect, trade_republic, other
 **Examples:**
-• !invest 500 scalable
-• !invest 1000 revolut ETF purchase
-• !invest 2000 comdirect monthly DCA`);
+â€¢ !invest 500 scalable
+â€¢ !invest 1000 revolut ETF purchase
+â€¢ !invest 2000 comdirect monthly DCA`);
     return { success: false, error: 'Invalid format' };
   }
   
@@ -330,7 +330,7 @@ function handleInvestCommand(message, username) {
   let amount = null;
   let amountIndex = -1;
   for (let i = 1; i < parts.length; i++) {
-    const num = parseFloat(parts[i].replace('€', '').replace(',', '.'));
+    const num = parseFloat(parts[i].replace('â‚¬', '').replace(',', '.'));
     if (!isNaN(num) && num > 0) {
       amount = num;
       amountIndex = i;
@@ -339,7 +339,7 @@ function handleInvestCommand(message, username) {
   }
   
   if (!amount) {
-    sendDiscordMessage('❌ Could not parse amount. Use: !invest 500 scalable');
+    sendDiscordMessage('âŒ Could not parse amount. Use: !invest 500 scalable');
     return { success: false, error: 'No amount found' };
   }
   
@@ -360,7 +360,7 @@ function handleInvestCommand(message, username) {
   }
   
   if (!destination) {
-    sendDiscordMessage(`❌ Unknown destination. Use: scalable, revolut, comdirect, trade_republic, or other`);
+    sendDiscordMessage(`âŒ Unknown destination. Use: scalable, revolut, comdirect, trade_republic, or other`);
     return { success: false, error: 'Unknown destination' };
   }
   
@@ -379,13 +379,13 @@ function handleInvestCommand(message, username) {
     // Get month total
     const monthTotal = getInvestmentMonthTotal(monthKey);
     
-    sendDiscordMessage(`✅ **Investment Logged**
-━━━━━━━━━━━━━━━━━━━━━━━━━
-📈 €${amount.toFixed(2)} → ${capitalizeFirst(destination)}
-📅 Month: ${monthKey}
-📝 ${notes || '(no notes)'}
-━━━━━━━━━━━━━━━━━━━━━━━━━
-**${monthKey} Total Invested:** €${monthTotal.toFixed(2)}`);
+    sendDiscordMessage(`âœ… **Investment Logged**
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+ðŸ“ˆ â‚¬${amount.toFixed(2)} â†’ ${capitalizeFirst(destination)}
+ðŸ“… Month: ${monthKey}
+ðŸ“ ${notes || '(no notes)'}
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+**${monthKey} Total Invested:** â‚¬${monthTotal.toFixed(2)}`);
   }
   
   return result;
@@ -404,7 +404,7 @@ function logInvestmentEntry(amount, destination, notes, monthKey, inputter) {
     
     return { success: true };
   } catch (e) {
-    sendDiscordMessage('❌ Error logging investment: ' + e.toString());
+    sendDiscordMessage('âŒ Error logging investment: ' + e.toString());
     return { success: false, error: e.toString() };
   }
 }
@@ -442,8 +442,8 @@ function getInvestmentStatus(monthKeyOverride) {
     }
   }
   
-  let response = `📈 **Investment Status for ${monthKey}**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  let response = `ðŸ“ˆ **Investment Status for ${monthKey}**
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 `;
 
@@ -451,13 +451,13 @@ function getInvestmentStatus(monthKeyOverride) {
     response += `No investments logged this month yet.
 
 **Log a transfer:**
-• !invest 500 scalable
-• !invest 1000 revolut ETF purchase`;
+â€¢ !invest 500 scalable
+â€¢ !invest 1000 revolut ETF purchase`;
   } else {
     // List by destination
     response += `**By Destination:**\n`;
     for (const [dest, amt] of Object.entries(byDestination).sort((a, b) => b[1] - a[1])) {
-      response += `• ${capitalizeFirst(dest)}: €${amt.toFixed(2)}\n`;
+      response += `â€¢ ${capitalizeFirst(dest)}: â‚¬${amt.toFixed(2)}\n`;
     }
     
     response += `\n**Recent Transfers:**\n`;
@@ -465,12 +465,12 @@ function getInvestmentStatus(monthKeyOverride) {
     const recentTransfers = transfers.slice(-5).reverse();
     for (const t of recentTransfers) {
       const notesStr = t.notes ? ` - ${t.notes.substring(0, 20)}` : '';
-      response += `• ${t.date}: €${t.amount.toFixed(2)} → ${capitalizeFirst(t.destination)}${notesStr}\n`;
+      response += `â€¢ ${t.date}: â‚¬${t.amount.toFixed(2)} â†’ ${capitalizeFirst(t.destination)}${notesStr}\n`;
     }
     
     response += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-**Total:** €${totalAmount.toFixed(2)} (${transferCount} transfers)`;
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+**Total:** â‚¬${totalAmount.toFixed(2)} (${transferCount} transfers)`;
   }
   
   sendDiscordMessage(response);
@@ -517,14 +517,14 @@ function handleIncomeCommand(message, username) {
   const parts = message.trim().split(/\s+/);
   
   if (parts.length < 3) {
-    sendDiscordMessage(`❌ **Format:** !income [amount] [type] [h/w] [description]
+    sendDiscordMessage(`âŒ **Format:** !income [amount] [type] [h/w] [description]
 
 **Types:** salary, youtube, other
 **Examples:**
-• !income 4200 salary h
-• !income 3800 salary w
-• !income 1200 youtube
-• !income 50 other payback cashout`);
+â€¢ !income 4200 salary h
+â€¢ !income 3800 salary w
+â€¢ !income 1200 youtube
+â€¢ !income 50 other payback cashout`);
     return { success: false, error: 'Invalid format' };
   }
   
@@ -532,7 +532,7 @@ function handleIncomeCommand(message, username) {
   let amount = null;
   let amountIndex = -1;
   for (let i = 1; i < parts.length; i++) {
-    const num = parseFloat(parts[i].replace('€', '').replace(',', '.'));
+    const num = parseFloat(parts[i].replace('â‚¬', '').replace(',', '.'));
     if (!isNaN(num) && num > 0) {
       amount = num;
       amountIndex = i;
@@ -541,7 +541,7 @@ function handleIncomeCommand(message, username) {
   }
   
   if (!amount) {
-    sendDiscordMessage('❌ Could not parse amount. Use: !income 4200 salary h');
+    sendDiscordMessage('âŒ Could not parse amount. Use: !income 4200 salary h');
     return { success: false, error: 'No amount found' };
   }
   
@@ -557,7 +557,7 @@ function handleIncomeCommand(message, username) {
   }
   
   if (!incomeType) {
-    sendDiscordMessage('❌ Unknown income type. Use: salary, youtube, or other');
+    sendDiscordMessage('âŒ Unknown income type. Use: salary, youtube, or other');
     return { success: false, error: 'Unknown type' };
   }
   
@@ -576,7 +576,7 @@ function handleIncomeCommand(message, username) {
       }
     }
     if (!spender) {
-      sendDiscordMessage(`❌ Salary requires spender (h/w). Use: !income ${amount} salary h`);
+      sendDiscordMessage(`âŒ Salary requires spender (h/w). Use: !income ${amount} salary h`);
       return { success: false, error: 'Missing spender' };
     }
   }
@@ -606,12 +606,12 @@ function handleIncomeCommand(message, username) {
   if (result.success) {
     const spenderStr = spender ? ` (${spender})` : '';
     const updateStr = result.updated ? ' *(updated)*' : '';
-    sendDiscordMessage(`✅ **Income Logged**${updateStr}
-━━━━━━━━━━━━━━━━━━━━━━━━━
-💰 €${amount.toFixed(2)} → ${typeConfig.label}${spenderStr}
-📅 For: ${monthKey}
-📝 ${description || '(no description)'}
-━━━━━━━━━━━━━━━━━━━━━━━━━
+    sendDiscordMessage(`âœ… **Income Logged**${updateStr}
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+ðŸ’° â‚¬${amount.toFixed(2)} â†’ ${typeConfig.label}${spenderStr}
+ðŸ“… For: ${monthKey}
+ðŸ“ ${description || '(no description)'}
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Use **!income status** to see what's still missing`);
   }
   
@@ -647,7 +647,7 @@ function logIncomeEntry(type, amount, spender, description, monthKey, inputter) 
       return { success: true, updated: false };
     }
   } catch (e) {
-    sendDiscordMessage('❌ Error logging income: ' + e.toString());
+    sendDiscordMessage('âŒ Error logging income: ' + e.toString());
     return { success: false, error: e.toString() };
   }
 }
@@ -658,11 +658,11 @@ function handleTACommand(message, username) {
   const parts = message.trim().split(/\s+/);
   
   if (parts.length < 3) {
-    sendDiscordMessage(`❌ **Format:** !ta [hours] [h/w]
+    sendDiscordMessage(`âŒ **Format:** !ta [hours] [h/w]
 
 **Examples:**
-• !ta 45 h - Husband added 45 hours
-• !ta 38 w - Wife added 38 hours`);
+â€¢ !ta 45 h - Husband added 45 hours
+â€¢ !ta 38 w - Wife added 38 hours`);
     return { success: false, error: 'Invalid format' };
   }
   
@@ -677,7 +677,7 @@ function handleTACommand(message, username) {
   }
   
   if (hours === null) {
-    sendDiscordMessage('❌ Could not parse hours. Use: !ta 45 h');
+    sendDiscordMessage('âŒ Could not parse hours. Use: !ta 45 h');
     return { success: false, error: 'No hours found' };
   }
   
@@ -692,7 +692,7 @@ function handleTACommand(message, username) {
   }
   
   if (!spender) {
-    sendDiscordMessage('❌ Please specify h or w. Use: !ta 45 h');
+    sendDiscordMessage('âŒ Please specify h or w. Use: !ta 45 h');
     return { success: false, error: 'Missing spender' };
   }
   
@@ -707,11 +707,11 @@ function handleTACommand(message, username) {
   if (result.success) {
     const label = spender === 'H' ? 'Husband' : 'Wife';
     const updateStr = result.updated ? ' *(updated)*' : '';
-    sendDiscordMessage(`✅ **Time Account Logged**${updateStr}
-━━━━━━━━━━━━━━━━━━━━━━━━━
-⏱️ ${hours} hours → ${label}
-📅 For: ${monthKey}
-━━━━━━━━━━━━━━━━━━━━━━━━━
+    sendDiscordMessage(`âœ… **Time Account Logged**${updateStr}
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+â±ï¸ ${hours} hours â†’ ${label}
+ðŸ“… For: ${monthKey}
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 Use **!income status** to see what's still missing`);
   }
   
@@ -745,7 +745,7 @@ function logTAEntry(type, hours, spender, monthKey, inputter) {
       return { success: true, updated: false };
     }
   } catch (e) {
-    sendDiscordMessage('❌ Error logging TA hours: ' + e.toString());
+    sendDiscordMessage('âŒ Error logging TA hours: ' + e.toString());
     return { success: false, error: e.toString() };
   }
 }
@@ -801,52 +801,52 @@ function getIncomeStatus(monthKeyOverride) {
   }
   
   const allComplete = Object.values(entered).every(v => v);
-  const statusEmoji = allComplete ? '✅' : '📋';
+  const statusEmoji = allComplete ? 'âœ…' : 'ðŸ“‹';
   
   let response = `${statusEmoji} **Income Status for ${targetMonth}**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 `;
   
   response += entered['salary_h'] 
-    ? `✅ H Net Salary: €${amounts['salary_h'].toFixed(2)}\n`
-    : `❌ H Net Salary: *missing*\n`;
+    ? `âœ… H Net Salary: â‚¬${amounts['salary_h'].toFixed(2)}\n`
+    : `âŒ H Net Salary: *missing*\n`;
     
   response += entered['salary_w']
-    ? `✅ W Net Salary: €${amounts['salary_w'].toFixed(2)}\n`
-    : `❌ W Net Salary: *missing*\n`;
+    ? `âœ… W Net Salary: â‚¬${amounts['salary_w'].toFixed(2)}\n`
+    : `âŒ W Net Salary: *missing*\n`;
     
   response += entered['youtube']
-    ? `✅ YouTube Gross: €${amounts['youtube'].toFixed(2)}\n`
-    : `❌ YouTube Gross: *missing*\n`;
+    ? `âœ… YouTube Gross: â‚¬${amounts['youtube'].toFixed(2)}\n`
+    : `âŒ YouTube Gross: *missing*\n`;
     
   response += amounts['other']
-    ? `✅ Other Income: €${amounts['other'].toFixed(2)}\n`
-    : `➖ Other Income: €0 (assumed)\n`;
+    ? `âœ… Other Income: â‚¬${amounts['other'].toFixed(2)}\n`
+    : `âž– Other Income: â‚¬0 (assumed)\n`;
     
   response += entered['ta_h']
-    ? `✅ H TA Hours: ${amounts['ta_h']} hrs\n`
-    : `❌ H TA Hours: *missing*\n`;
+    ? `âœ… H TA Hours: ${amounts['ta_h']} hrs\n`
+    : `âŒ H TA Hours: *missing*\n`;
     
   response += entered['ta_w']
-    ? `✅ W TA Hours: ${amounts['ta_w']} hrs\n`
-    : `❌ W TA Hours: *missing*\n`;
+    ? `âœ… W TA Hours: ${amounts['ta_w']} hrs\n`
+    : `âŒ W TA Hours: *missing*\n`;
   
   response += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”`;
   
   if (!allComplete) {
     response += `
 
 **Commands:**
-• !income [amount] salary h/w
-• !income [amount] youtube
-• !income [amount] other [desc]
-• !ta [hours] h/w`;
+â€¢ !income [amount] salary h/w
+â€¢ !income [amount] youtube
+â€¢ !income [amount] other [desc]
+â€¢ !ta [hours] h/w`;
   } else {
     response += `
 
-🎉 All required inputs complete!`;
+ðŸŽ‰ All required inputs complete!`;
   }
   
   sendDiscordMessage(response);
@@ -899,24 +899,24 @@ function checkAndSendIncomeReminder() {
   }
   
   let missing = [];
-  if (!entered['salary_h']) missing.push('❌ H Net Salary');
-  if (!entered['salary_w']) missing.push('❌ W Net Salary');
-  if (!entered['youtube']) missing.push('❌ YouTube Gross');
-  if (!entered['ta_h']) missing.push('❌ H TA Hours');
-  if (!entered['ta_w']) missing.push('❌ W TA Hours');
+  if (!entered['salary_h']) missing.push('âŒ H Net Salary');
+  if (!entered['salary_w']) missing.push('âŒ W Net Salary');
+  if (!entered['youtube']) missing.push('âŒ YouTube Gross');
+  if (!entered['ta_h']) missing.push('âŒ H TA Hours');
+  if (!entered['ta_w']) missing.push('âŒ W TA Hours');
   
-  const reminder = `📋 **MONTHLY INCOME UPDATE NEEDED**
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  const reminder = `ðŸ“‹ **MONTHLY INCOME UPDATE NEEDED**
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 
 **${monthKey}** inputs still missing:
 
 ${missing.join('\n')}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 **Commands:**
-• !income [amount] salary h/w
-• !income [amount] youtube
-• !ta [hours] h/w
+â€¢ !income [amount] salary h/w
+â€¢ !income [amount] youtube
+â€¢ !ta [hours] h/w
 
 Use **!income status** for full details`;
 
@@ -947,7 +947,7 @@ function logExpense(message, username) {
   const parsed = parseExpenseInput(message);
   
   if (!parsed) {
-    sendDiscordMessage('❌ **Error:** Could not parse expense.\n\n**Format:** amount merchant\n**Example:** 45 lidl');
+    sendDiscordMessage('âŒ **Error:** Could not parse expense.\n\n**Format:** amount merchant\n**Example:** 45 lidl');
     return { success: false, error: 'Parse failed' };
   }
   
@@ -1093,7 +1093,7 @@ function parseExpenseInputRegex(input) {
     return `__DATE${datePatterns.length - 1}__`;
   });
   
-  let amountMatch = cleanInput.match(/(\d+(?:[.,]\d+)?)\s*[€e](?![a-df-z])/i);
+  let amountMatch = cleanInput.match(/(\d+(?:[.,]\d+)?)\s*[â‚¬e](?![a-df-z])/i);
   if (!amountMatch) {
     amountMatch = cleanInput.match(/(?:^|\s)(\d+(?:[.,]\d+)?)/);
   }
@@ -1102,7 +1102,7 @@ function parseExpenseInputRegex(input) {
   const amount = parseFloat(amountMatch[1].replace(',', '.'));
   
   const amountStr = amountMatch[1];
-  input = input.replace(new RegExp('(^|\\s)' + amountStr.replace('.', '\\.').replace(',', '\\,') + '\\s*[€e]?(?![a-df-z])', 'i'), '$1').trim();
+  input = input.replace(new RegExp('(^|\\s)' + amountStr.replace('.', '\\.').replace(',', '\\,') + '\\s*[â‚¬e]?(?![a-df-z])', 'i'), '$1').trim();
   
   let spender = null;
   const aliasPattern = Object.keys(SPENDER_ALIASES).join('|');
@@ -1155,7 +1155,7 @@ function parseWithGemini(input) {
 Input: "${input}"
 
 Extract:
-- amount: number (required, look for any number with optional €/e, comma or dot decimals)
+- amount: number (required, look for any number with optional â‚¬/e, comma or dot decimals)
 - merchant: string (required, the store/place name - NOT item details)
 - category: string or null (if explicitly mentioned from: ${categories})
 - spender: "H" or "W" or null (H if: h, husband, nha, anh, aaron; W if: w, wife, trang, chang, em)
@@ -1163,9 +1163,9 @@ Extract:
 - description: string or null (any item details, notes, or context after keywords like "items:", "for:", "desc:", or comma-separated details)
 
 Examples:
-"24€ amazon anh, category Gifts, Items: football, toys" → {"amount":24,"merchant":"amazon","category":"Gifts","spender":"H","date":null,"description":"football, toys"}
-"45 rewe wife yesterday" → {"amount":45,"merchant":"rewe","category":null,"spender":"W","date":"${today}","description":null}
-"lunch 15e for team meeting" → {"amount":15,"merchant":"lunch","category":null,"spender":null,"date":null,"description":"team meeting"}
+"24â‚¬ amazon anh, category Gifts, Items: football, toys" â†’ {"amount":24,"merchant":"amazon","category":"Gifts","spender":"H","date":null,"description":"football, toys"}
+"45 rewe wife yesterday" â†’ {"amount":45,"merchant":"rewe","category":null,"spender":"W","date":"${today}","description":null}
+"lunch 15e for team meeting" â†’ {"amount":15,"merchant":"lunch","category":null,"spender":null,"date":null,"description":"team meeting"}
 
 Return ONLY valid JSON like:
 {"amount":45,"merchant":"Rewe","category":null,"spender":"H","date":"2025-03-06","description":null}`;
@@ -1356,10 +1356,10 @@ function calculateBudgetStatus(category, monthKey) {
   const remaining = budget - spent;
   const percent = budget > 0 ? spent / budget : 0;
   
-  let status = '🟢';
-  if (percent >= 1) status = '🔴';
-  else if (percent >= 0.8) status = '🟠';
-  else if (percent >= 0.5) status = '🟡';
+  let status = 'ðŸŸ¢';
+  if (percent >= 1) status = 'ðŸ”´';
+  else if (percent >= 0.8) status = 'ðŸŸ ';
+  else if (percent >= 0.5) status = 'ðŸŸ¡';
   
   return {
     category: category,
@@ -1399,10 +1399,10 @@ function getBudgetStatus() {
   const budgetSheet = getSheet(CONFIG.SHEETS.BUDGET);
   const budgetData = budgetSheet.getDataRange().getValues();
   
-  let response = `📊 **BUDGET STATUS** (${monthName})\n`;
+  let response = `ðŸ“Š **BUDGET STATUS** (${monthName})\n`;
   response += '```\n';
   response += 'Category              Spent    Budget   %\n';
-  response += '─────────────────────────────────────────\n';
+  response += 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
   
   let totalBudget = 0;
   let totalSpent = 0;
@@ -1416,15 +1416,15 @@ function getBudgetStatus() {
     const spent = calculateCategorySpent(category, monthKey);
     const percent = budget > 0 ? spent / budget : 0;
     
-    let status = '🟢';
-    if (percent >= 1) status = '🔴';
-    else if (percent >= 0.8) status = '🟠';
-    else if (percent >= 0.5) status = '🟡';
+    let status = 'ðŸŸ¢';
+    if (percent >= 1) status = 'ðŸ”´';
+    else if (percent >= 0.8) status = 'ðŸŸ ';
+    else if (percent >= 0.5) status = 'ðŸŸ¡';
     
     const percentStr = (percent * 100).toFixed(0).padStart(3);
     const catName = category.substring(0, 18).padEnd(18);
-    const spentStr = ('€' + spent.toFixed(0)).padStart(8);
-    const budgetStr = ('€' + budget).padStart(8);
+    const spentStr = ('â‚¬' + spent.toFixed(0)).padStart(8);
+    const budgetStr = ('â‚¬' + budget).padStart(8);
     
     response += `${status} ${catName} ${spentStr} ${budgetStr} ${percentStr}%\n`;
     
@@ -1433,8 +1433,8 @@ function getBudgetStatus() {
   }
   
   const totalPercent = totalBudget > 0 ? totalSpent / totalBudget : 0;
-  response += '─────────────────────────────────────────\n';
-  response += `   TOTAL              ${('€' + totalSpent.toFixed(0)).padStart(8)} ${('€' + totalBudget).padStart(8)} ${(totalPercent * 100).toFixed(0).padStart(3)}%\n`;
+  response += 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
+  response += `   TOTAL              ${('â‚¬' + totalSpent.toFixed(0)).padStart(8)} ${('â‚¬' + totalBudget).padStart(8)} ${(totalPercent * 100).toFixed(0).padStart(3)}%\n`;
   response += '```';
   
   sendDiscordMessage(response);
@@ -1447,10 +1447,10 @@ function getBudgetLeft() {
   const budgetSheet = getSheet(CONFIG.SHEETS.BUDGET);
   const budgetData = budgetSheet.getDataRange().getValues();
   
-  let response = `💰 **BUDGET REMAINING** (${monthName})\n`;
+  let response = `ðŸ’° **BUDGET REMAINING** (${monthName})\n`;
   response += '```\n';
   response += 'Category              Left     Budget  Used\n';
-  response += '─────────────────────────────────────────\n';
+  response += 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
   
   let totalBudget = 0;
   let totalSpent = 0;
@@ -1464,14 +1464,14 @@ function getBudgetLeft() {
     const remaining = budget - spent;
     const percent = budget > 0 ? spent / budget : 0;
     
-    let status = '🟢';
-    if (percent >= 1) status = '🔴';
-    else if (percent >= 0.8) status = '🟠';
-    else if (percent >= 0.5) status = '🟡';
+    let status = 'ðŸŸ¢';
+    if (percent >= 1) status = 'ðŸ”´';
+    else if (percent >= 0.8) status = 'ðŸŸ ';
+    else if (percent >= 0.5) status = 'ðŸŸ¡';
     
     const catName = category.substring(0, 18).padEnd(18);
-    const remainingStr = remaining >= 0 ? ('€' + remaining.toFixed(0)).padStart(8) : ('-€' + Math.abs(remaining).toFixed(0)).padStart(8);
-    const budgetStr = ('€' + budget).padStart(8);
+    const remainingStr = remaining >= 0 ? ('â‚¬' + remaining.toFixed(0)).padStart(8) : ('-â‚¬' + Math.abs(remaining).toFixed(0)).padStart(8);
+    const budgetStr = ('â‚¬' + budget).padStart(8);
     const percentStr = ((percent * 100).toFixed(0) + '%').padStart(4);
     
     response += `${status} ${catName} ${remainingStr} ${budgetStr} ${percentStr}\n`;
@@ -1482,8 +1482,8 @@ function getBudgetLeft() {
   
   const totalRemaining = totalBudget - totalSpent;
   const totalPercent = totalBudget > 0 ? totalSpent / totalBudget : 0;
-  response += '─────────────────────────────────────────\n';
-  response += `   TOTAL              ${('€' + totalRemaining.toFixed(0)).padStart(8)} ${('€' + totalBudget).padStart(8)} ${((totalPercent * 100).toFixed(0) + '%').padStart(4)}\n`;
+  response += 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
+  response += `   TOTAL              ${('â‚¬' + totalRemaining.toFixed(0)).padStart(8)} ${('â‚¬' + totalBudget).padStart(8)} ${((totalPercent * 100).toFixed(0) + '%').padStart(4)}\n`;
   response += '```';
   
   sendDiscordMessage(response);
@@ -1500,10 +1500,10 @@ function getYTDStatus() {
   const ledgerSheet = getSheet(CONFIG.SHEETS.LEDGER);
   const ledgerData = ledgerSheet.getDataRange().getValues();
   
-  let response = `📊 **YEAR TO DATE** (${year})\n`;
+  let response = `ðŸ“Š **YEAR TO DATE** (${year})\n`;
   response += '```\n';
   response += 'Category              Spent    Budget   %\n';
-  response += '─────────────────────────────────────────\n';
+  response += 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
   
   let totalBudget = 0;
   let totalSpent = 0;
@@ -1528,15 +1528,15 @@ function getYTDStatus() {
     }
     
     const percent = ytdBudget > 0 ? ytdSpent / ytdBudget : 0;
-    let status = '🟢';
-    if (percent >= 1) status = '🔴';
-    else if (percent >= 0.8) status = '🟠';
-    else if (percent >= 0.5) status = '🟡';
+    let status = 'ðŸŸ¢';
+    if (percent >= 1) status = 'ðŸ”´';
+    else if (percent >= 0.8) status = 'ðŸŸ ';
+    else if (percent >= 0.5) status = 'ðŸŸ¡';
     
     const percentStr = (percent * 100).toFixed(0).padStart(3);
     const catName = category.substring(0, 18).padEnd(18);
-    const spentStr = ('€' + ytdSpent.toFixed(0)).padStart(8);
-    const budgetStr = ('€' + ytdBudget.toFixed(0)).padStart(8);
+    const spentStr = ('â‚¬' + ytdSpent.toFixed(0)).padStart(8);
+    const budgetStr = ('â‚¬' + ytdBudget.toFixed(0)).padStart(8);
     
     response += `${status} ${catName} ${spentStr} ${budgetStr} ${percentStr}%\n`;
     
@@ -1545,8 +1545,8 @@ function getYTDStatus() {
   }
   
   const totalPercent = totalBudget > 0 ? totalSpent / totalBudget : 0;
-  response += '─────────────────────────────────────────\n';
-  response += `   TOTAL YTD          ${('€' + totalSpent.toFixed(0)).padStart(8)} ${('€' + totalBudget.toFixed(0)).padStart(8)} ${(totalPercent * 100).toFixed(0).padStart(3)}%\n`;
+  response += 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
+  response += `   TOTAL YTD          ${('â‚¬' + totalSpent.toFixed(0)).padStart(8)} ${('â‚¬' + totalBudget.toFixed(0)).padStart(8)} ${(totalPercent * 100).toFixed(0).padStart(3)}%\n`;
   response += '```';
   
   sendDiscordMessage(response);
@@ -1558,7 +1558,7 @@ function getTodayTransactions() {
   const sheet = getSheet(CONFIG.SHEETS.LEDGER);
   const data = sheet.getDataRange().getValues();
   
-  let response = `📅 **Today's Transactions** (${today})\n─────────────────────────────\n`;
+  let response = `ðŸ“… **Today's Transactions** (${today})\nâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n`;
   let total = 0;
   let count = 0;
   
@@ -1568,16 +1568,16 @@ function getTodayTransactions() {
       const amount = data[i][3];
       const merchant = data[i][4];
       const category = data[i][6];
-      response += `€${amount.toFixed(2)} - ${merchant} (${category})\n`;
+      response += `â‚¬${amount.toFixed(2)} - ${merchant} (${category})\n`;
       total += amount;
       count++;
     }
   }
   
   if (count === 0) {
-    response += '✨ No transactions yet today';
+    response += 'âœ¨ No transactions yet today';
   } else {
-    response += `─────────────────────────────\n**Total:** €${total.toFixed(2)} (${count} transactions)`;
+    response += `â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n**Total:** â‚¬${total.toFixed(2)} (${count} transactions)`;
   }
   
   sendDiscordMessage(response);
@@ -1591,7 +1591,7 @@ function getWeekTransactions() {
   const sheet = getSheet(CONFIG.SHEETS.LEDGER);
   const data = sheet.getDataRange().getValues();
   
-  let response = '📆 **This Week\'s Transactions**\n─────────────────────────────\n';
+  let response = 'ðŸ“† **This Week\'s Transactions**\nâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
   let total = 0;
   let count = 0;
   
@@ -1602,16 +1602,16 @@ function getWeekTransactions() {
       const merchant = data[i][4];
       const category = data[i][6];
       const dateStr = Utilities.formatDate(txnDate, CONFIG.TIMEZONE, 'MM-dd');
-      response += `${dateStr}: €${amount.toFixed(2)} - ${merchant} (${category})\n`;
+      response += `${dateStr}: â‚¬${amount.toFixed(2)} - ${merchant} (${category})\n`;
       total += amount;
       count++;
     }
   }
   
   if (count === 0) {
-    response += '✨ No transactions this week';
+    response += 'âœ¨ No transactions this week';
   } else {
-    response += `─────────────────────────────\n**Total:** €${total.toFixed(2)} (${count} transactions)`;
+    response += `â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n**Total:** â‚¬${total.toFixed(2)} (${count} transactions)`;
   }
   
   sendDiscordMessage(response);
@@ -1624,13 +1624,13 @@ function handleUndo(username) {
   const lastTxnTime = parseInt(props.getProperty('last_txn_time') || '0');
   
   if (!lastTxnId) {
-    sendDiscordMessage('❌ No recent transaction to undo.');
+    sendDiscordMessage('âŒ No recent transaction to undo.');
     return { success: false };
   }
   
   const now = new Date().getTime();
   if (now - lastTxnTime > 10 * 60 * 1000) {
-    sendDiscordMessage('❌ Last transaction is older than 10 minutes. Cannot undo.');
+    sendDiscordMessage('âŒ Last transaction is older than 10 minutes. Cannot undo.');
     return { success: false };
   }
   
@@ -1651,7 +1651,7 @@ function handleUndo(username) {
   }
   
   if (!txnDetails) {
-    sendDiscordMessage('❌ Transaction not found in sheet.');
+    sendDiscordMessage('âŒ Transaction not found in sheet.');
     return { success: false };
   }
   
@@ -1659,11 +1659,11 @@ function handleUndo(username) {
   props.setProperty('pending_undo_row', txnDetails.row.toString());
   
   const minutesAgo = Math.round((now - lastTxnTime) / 60000);
-  sendDiscordMessage(`⚠️ **Delete this transaction?**
-─────────────────────────────
-€${txnDetails.amount.toFixed(2)} - ${txnDetails.merchant} (${txnDetails.category})
+  sendDiscordMessage(`âš ï¸ **Delete this transaction?**
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+â‚¬${txnDetails.amount.toFixed(2)} - ${txnDetails.merchant} (${txnDetails.category})
 Logged ${minutesAgo} min ago
-─────────────────────────────
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Reply **!undo confirm** to delete`);
   
   return { success: true };
@@ -1674,7 +1674,7 @@ function executeUndo(username) {
   const pendingUndo = props.getProperty('pending_undo');
   
   if (!pendingUndo) {
-    sendDiscordMessage('❌ No pending undo. Use !undo first.');
+    sendDiscordMessage('âŒ No pending undo. Use !undo first.');
     return { success: false };
   }
   
@@ -1691,7 +1691,7 @@ function executeUndo(username) {
     }
     
     if (!rowToDelete) {
-      sendDiscordMessage('❌ Transaction not found. May have been already deleted.');
+      sendDiscordMessage('âŒ Transaction not found. May have been already deleted.');
       props.deleteProperty('pending_undo');
       props.deleteProperty('pending_undo_row');
       return { success: false };
@@ -1705,10 +1705,10 @@ function executeUndo(username) {
     props.deleteProperty('last_txn_time');
     props.deleteProperty('last_txn_user');
     
-    sendDiscordMessage(`✦ Deleted transaction ${pendingUndo}`);
+    sendDiscordMessage(`âœ¦ Deleted transaction ${pendingUndo}`);
     return { success: true };
   } catch (e) {
-    sendDiscordMessage('❌ Error deleting: ' + e.toString());
+    sendDiscordMessage('âŒ Error deleting: ' + e.toString());
     return { success: false };
   }
 }
@@ -1716,18 +1716,18 @@ function executeUndo(username) {
 // ============ FORMATTING ============
 
 function formatExpenseResponse(parsed, category, spender, categorization, budgetStatus) {
-  const catTag = categorization === 'ai' ? '(ai ⚠️)' : '(user)';
+  const catTag = categorization === 'ai' ? '(ai âš ï¸)' : '(user)';
   
-  return `✅ **Logged:** €${parsed.amount.toFixed(2)} → ${category}
-📍 Merchant: ${parsed.merchant}
-👤 Spender: ${spender}
-🏷️ Category: ${category} ${catTag}
+  return `âœ… **Logged:** â‚¬${parsed.amount.toFixed(2)} â†’ ${category}
+ðŸ“ Merchant: ${parsed.merchant}
+ðŸ‘¤ Spender: ${spender}
+ðŸ·ï¸ Category: ${category} ${catTag}
 
-─────────────────────────────
-📊 **BUDGET STATUS**
-─────────────────────────────
-**${category}:** €${budgetStatus.spent.toFixed(0)}/€${budgetStatus.budget} (${(budgetStatus.percent * 100).toFixed(0)}%) ${budgetStatus.status}
-─────────────────────────────`;
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ðŸ“Š **BUDGET STATUS**
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+**${category}:** â‚¬${budgetStatus.spent.toFixed(0)}/â‚¬${budgetStatus.budget} (${(budgetStatus.percent * 100).toFixed(0)}%) ${budgetStatus.status}
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€`;
 }
 
 // ============ DISCORD ============
@@ -1802,29 +1802,49 @@ function getExpenseBreakdown(month) {
     const monthEnd = new Date(year, monthNum, 0);
     
     const ledgerData = ledgerSheet.getDataRange().getValues();
-    const categoryTotals = {};
     
+    // Initialize category data with transactions array
+    const categoryData = {};
     CONFIG.CATEGORIES.forEach(cat => {
-      categoryTotals[cat] = 0;
+      categoryData[cat] = {
+        spent: 0,
+        transactions: []
+      };
     });
     
+    // Collect all transactions by category
     for (let i = 1; i < ledgerData.length; i++) {
       const txnDate = new Date(ledgerData[i][2]);
       const amount = ledgerData[i][3] || 0;
+      const merchant = ledgerData[i][4] || '';
       const category = ledgerData[i][6];
       
       if (txnDate >= monthStart && txnDate <= monthEnd) {
-        if (categoryTotals.hasOwnProperty(category)) {
-          categoryTotals[category] += amount;
+        if (categoryData.hasOwnProperty(category)) {
+          categoryData[category].spent += amount;
+          categoryData[category].transactions.push({
+            date: Utilities.formatDate(txnDate, CONFIG.TIMEZONE, 'dd.MM'),
+            date_sort: txnDate.getTime(),
+            merchant: merchant,
+            amount: Math.round(amount * 100) / 100
+          });
         } else {
-          categoryTotals[category] = amount;
+          // Handle unknown category
+          categoryData[category] = {
+            spent: amount,
+            transactions: [{
+              date: Utilities.formatDate(txnDate, CONFIG.TIMEZONE, 'dd.MM'),
+              date_sort: txnDate.getTime(),
+              merchant: merchant,
+              amount: Math.round(amount * 100) / 100
+            }]
+          };
         }
       }
     }
     
+    // Get budget data
     const budgetData = budgetSheet.getDataRange().getValues();
-    const monthKeyAlt = month;
-    
     const budgetMap = {};
     for (let i = 1; i < budgetData.length; i++) {
       const category = budgetData[i][0];
@@ -1835,35 +1855,71 @@ function getExpenseBreakdown(month) {
         storedMonthKey = storedMonthKey.replace(/^'/, '');
       }
       
-      if (storedMonthKey === monthKeyAlt || storedMonthKey === month) {
+      if (storedMonthKey === month) {
         budgetMap[category] = budget;
       }
     }
     
+    // Build categories array with transaction details
     const categories = [];
     let totalSpent = 0;
     let totalBudget = 0;
+    let totalTxnCount = 0;
     
     CONFIG.CATEGORIES.forEach(cat => {
-      const spent = Math.round(categoryTotals[cat] * 100) / 100;
+      const data = categoryData[cat];
+      const spent = Math.round(data.spent * 100) / 100;
       const budget = budgetMap[cat];
       const hasBudget = budget !== undefined;
       const percent = hasBudget && budget > 0 ? Math.round((spent / budget) * 100) : null;
+      const txnCount = data.transactions.length;
+      
+      // Sort transactions for recent (by date DESC) and top (by amount DESC)
+      const txnsByDate = [...data.transactions].sort((a, b) => b.date_sort - a.date_sort);
+      const txnsByAmount = [...data.transactions].sort((a, b) => b.amount - a.amount);
+      
+      // Get top 10 recent and top 10 by amount
+      const recentTxns = txnsByDate.slice(0, 10).map(t => ({
+        date: t.date,
+        merchant: t.merchant,
+        amount: t.amount
+      }));
+      
+      const topTxns = txnsByAmount.slice(0, 10).map(t => ({
+        date: t.date,
+        merchant: t.merchant,
+        amount: t.amount
+      }));
+      
+      // Calculate insights
+      const avgAmount = txnCount > 0 ? Math.round((spent / txnCount) * 100) / 100 : 0;
+      const maxTxn = txnsByAmount[0] || null;
       
       categories.push({
         name: cat,
         spent: spent,
         budget: hasBudget ? budget : null,
         percent: percent,
-        status: getStatusEmojiDashboard(percent)
+        status: getStatusEmojiDashboard(percent),
+        transaction_count: txnCount,
+        transactions_recent: recentTxns,
+        transactions_top: topTxns,
+        insights: {
+          avg_amount: avgAmount,
+          largest_amount: maxTxn ? maxTxn.amount : null,
+          largest_date: maxTxn ? maxTxn.date : null,
+          largest_merchant: maxTxn ? maxTxn.merchant : null
+        }
       });
       
       totalSpent += spent;
+      totalTxnCount += txnCount;
       if (hasBudget) {
         totalBudget += budget;
       }
     });
     
+    // Sort by spent DESC
     categories.sort((a, b) => b.spent - a.spent);
     
     return ContentService.createTextOutput(JSON.stringify({
@@ -1875,7 +1931,7 @@ function getExpenseBreakdown(month) {
         total_spent: Math.round(totalSpent * 100) / 100,
         total_budget: totalBudget > 0 ? totalBudget : null,
         total_percent: totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : null,
-        transaction_count: countTransactionsInMonth(ledgerData, monthStart, monthEnd),
+        transaction_count: totalTxnCount,
         budget_available: totalBudget > 0
       }
     })).setMimeType(ContentService.MimeType.JSON);
@@ -1891,10 +1947,10 @@ function getExpenseBreakdown(month) {
 
 function getStatusEmojiDashboard(percent) {
   if (percent === null) return 'N/A';
-  if (percent >= 100) return '🔴';
-  if (percent >= 80) return '🟠';
-  if (percent >= 50) return '🟡';
-  return '🟢';
+  if (percent >= 100) return 'ðŸ”´';
+  if (percent >= 80) return 'ðŸŸ ';
+  if (percent >= 50) return 'ðŸŸ¡';
+  return 'ðŸŸ¢';
 }
 
 function getMonthName(monthNum) {
