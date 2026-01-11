@@ -486,10 +486,11 @@
             width: 100%;
             border-collapse: collapse;
             font-size: 13px;
+            table-layout: fixed;
         }
         .expense-table th,
         .expense-table td {
-            padding: 12px 16px;
+            padding: 14px 12px;
             text-align: left;
             border-bottom: 1px solid var(--border);
         }
@@ -500,29 +501,143 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+        .expense-table th:nth-child(1) { width: 35%; }
+        .expense-table th:nth-child(2) { width: 15%; }
+        .expense-table th:nth-child(3) { width: 15%; }
+        .expense-table th:nth-child(4) { width: 12%; }
+        .expense-table th:nth-child(5) { width: 23%; }
         .expense-table .text-right {
             text-align: right;
         }
+        .expense-table tbody tr {
+            cursor: pointer;
+            transition: background 0.15s;
+        }
         .expense-table tbody tr:hover {
-            background: rgba(59, 130, 246, 0.05);
+            background: rgba(59, 130, 246, 0.08);
         }
         .expense-table tfoot td {
             font-weight: 600;
             background: var(--bg-secondary);
             border-top: 2px solid var(--border);
         }
+        .expense-category {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .expense-category-emoji {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
         .expense-status {
             display: inline-block;
-            padding: 4px 8px;
+            padding: 4px 10px;
             border-radius: 4px;
             font-size: 11px;
-            font-weight: 500;
+            font-weight: 600;
         }
         .expense-status.green { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
         .expense-status.yellow { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
         .expense-status.orange { background: rgba(249, 115, 22, 0.2); color: var(--accent-orange); }
         .expense-status.red { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
         .expense-status.na { background: rgba(100, 116, 139, 0.2); color: var(--text-muted); }
+        
+        /* Expense Tooltip */
+        .expense-tooltip {
+            position: fixed;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0;
+            min-width: 340px;
+            max-width: 400px;
+            z-index: 2000;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            overflow: hidden;
+        }
+        .expense-tooltip.visible { opacity: 1; }
+        .expense-tooltip-header {
+            background: var(--bg-card);
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .expense-tooltip-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .expense-tooltip-subtitle {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .expense-tooltip-section {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .expense-tooltip-section:last-child {
+            border-bottom: none;
+        }
+        .expense-tooltip-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .expense-tooltip-txn {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            font-size: 12px;
+            border-bottom: 1px dashed var(--border);
+        }
+        .expense-tooltip-txn:last-child {
+            border-bottom: none;
+        }
+        .expense-tooltip-txn-date {
+            color: var(--text-muted);
+            width: 45px;
+            flex-shrink: 0;
+        }
+        .expense-tooltip-txn-merchant {
+            color: var(--text-primary);
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            padding: 0 8px;
+        }
+        .expense-tooltip-txn-amount {
+            color: var(--accent-green);
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+        .expense-tooltip-insight {
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .expense-tooltip-insight span {
+            color: var(--accent-blue);
+            font-weight: 500;
+        }
         
         /* Debt Detail Styles */
         .debt-section {
@@ -702,6 +817,9 @@
     
     <div id="tooltip" class="tooltip"></div>
     
+    <!-- Expense Tooltip -->
+    <div id="expenseTooltip" class="expense-tooltip"></div>
+    
     <!-- Expense Modal -->
     <div class="modal-overlay" id="expenseModal">
         <div class="modal">
@@ -779,6 +897,37 @@ const categoryColors = {
     'Special IO': '#581c87',
     'Buffer': '#4c1d95'
 };
+
+// Category emoji mapping
+const categoryEmojis = {
+    'Childcare': '👶',
+    'Family Support': '👨‍👩‍👧',
+    'Groceries + Food': '🛒',
+    'Utilities': '💡',
+    'Car': '🚗',
+    'Shopping': '🛍️',
+    'Travel & Leisure': '✈️',
+    'Insurance': '🛡️',
+    'Eat Out & Food delivery': '🍔',
+    'Gifts': '🎁',
+    'Entertainment': '🎬',
+    'Health & beauty': '💄',
+    'Home improvement': '🔧',
+    'Business & Subscription': '💼',
+    'Donation': '❤️',
+    'Special IO': '⚡',
+    'Buffer': '🔄'
+};
+
+function getCategoryEmoji(name) {
+    return categoryEmojis[name] || '📦';
+}
+
+function formatPercentGerman(percent) {
+    if (percent === null || percent === undefined) return '—';
+    // German format: use . as thousand separator
+    return percent.toLocaleString('de-DE') + '%';
+}
 
 let allData = [];
 let currentYear = 2026;
@@ -1074,20 +1223,29 @@ function updateExpenseTable() {
     // Set period text
     period.textContent = currentExpenseData.month_name || '';
     
-    // Build table body
+    // Build table body with emoji and hover support
     let html = '';
-    currentExpenseData.categories.forEach(cat => {
+    currentExpenseData.categories.forEach((cat, idx) => {
         if (!cat) return;
         if (cat.spent === 0 && (!cat.budget || cat.budget === 0)) return;
         
+        const emoji = getCategoryEmoji(cat.name);
         const budgetStr = cat.budget !== null ? fmt(cat.budget) : '—';
-        const percentStr = cat.percent !== null ? `${cat.percent}%` : '—';
+        const percentStr = formatPercentGerman(cat.percent);
         const statusClass = getExpenseStatusClass(cat.percent);
         const statusText = getExpenseStatusText(cat.percent);
         
         html += `
-            <tr>
-                <td>${cat.name || 'Unknown'}</td>
+            <tr data-category-idx="${idx}" 
+                onmouseenter="showExpenseTooltip(event, ${idx})" 
+                onmousemove="moveExpenseTooltip(event)"
+                onmouseleave="hideExpenseTooltip()">
+                <td>
+                    <div class="expense-category">
+                        <span class="expense-category-emoji">${emoji}</span>
+                        <span>${cat.name || 'Unknown'}</span>
+                    </div>
+                </td>
                 <td class="text-right">${fmt(cat.spent || 0)}</td>
                 <td class="text-right">${budgetStr}</td>
                 <td class="text-right">${percentStr}</td>
@@ -1100,13 +1258,18 @@ function updateExpenseTable() {
     // Build footer totals
     const summary = currentExpenseData.summary;
     const totalBudget = summary.total_budget ? fmt(summary.total_budget) : '—';
-    const totalPercent = summary.total_percent !== null && summary.total_percent !== undefined ? `${summary.total_percent}%` : '—';
+    const totalPercent = formatPercentGerman(summary.total_percent);
     const totalStatusClass = getExpenseStatusClass(summary.total_percent);
     const totalStatusText = getExpenseStatusText(summary.total_percent);
     
     tfoot.innerHTML = `
         <tr>
-            <td><strong>Total</strong> (${summary.transaction_count || 0} txns)</td>
+            <td>
+                <div class="expense-category">
+                    <span class="expense-category-emoji">📊</span>
+                    <strong>Total</strong> <span style="font-weight:normal; color: var(--text-muted);">(${summary.transaction_count || 0} txns)</span>
+                </div>
+            </td>
             <td class="text-right">${fmt(summary.total_spent || 0)}</td>
             <td class="text-right">${totalBudget}</td>
             <td class="text-right">${totalPercent}</td>
@@ -1115,6 +1278,128 @@ function updateExpenseTable() {
     `;
     
     table.style.display = 'table';
+}
+
+// ============ EXPENSE TOOLTIP FUNCTIONS ============
+
+function showExpenseTooltip(event, categoryIdx) {
+    const tooltip = document.getElementById('expenseTooltip');
+    const cat = currentExpenseData?.categories?.[categoryIdx];
+    
+    if (!cat) {
+        tooltip.classList.remove('visible');
+        return;
+    }
+    
+    const emoji = getCategoryEmoji(cat.name);
+    const budgetStr = cat.budget !== null ? fmt(cat.budget) : 'No budget';
+    const percentStr = cat.percent !== null ? `${cat.percent}%` : '';
+    const txnCount = cat.transaction_count || cat.transactions_recent?.length || 0;
+    
+    let html = `
+        <div class="expense-tooltip-header">
+            <div class="expense-tooltip-title">${emoji} ${cat.name}</div>
+            <div class="expense-tooltip-subtitle">${fmt(cat.spent)} / ${budgetStr} ${percentStr ? `(${percentStr})` : ''} • ${txnCount} transactions</div>
+        </div>
+    `;
+    
+    // Recent transactions section
+    if (cat.transactions_recent && cat.transactions_recent.length > 0) {
+        html += `
+            <div class="expense-tooltip-section">
+                <div class="expense-tooltip-section-title">📅 Recent Transactions</div>
+        `;
+        cat.transactions_recent.forEach(txn => {
+            html += `
+                <div class="expense-tooltip-txn">
+                    <span class="expense-tooltip-txn-date">${txn.date}</span>
+                    <span class="expense-tooltip-txn-merchant">${txn.merchant}</span>
+                    <span class="expense-tooltip-txn-amount">${fmt(txn.amount)}</span>
+                </div>
+            `;
+        });
+        html += `</div>`;
+    }
+    
+    // Top transactions section
+    if (cat.transactions_top && cat.transactions_top.length > 0) {
+        html += `
+            <div class="expense-tooltip-section">
+                <div class="expense-tooltip-section-title">💰 Top Transactions</div>
+        `;
+        cat.transactions_top.forEach(txn => {
+            html += `
+                <div class="expense-tooltip-txn">
+                    <span class="expense-tooltip-txn-date">${txn.date}</span>
+                    <span class="expense-tooltip-txn-merchant">${txn.merchant}</span>
+                    <span class="expense-tooltip-txn-amount">${fmt(txn.amount)}</span>
+                </div>
+            `;
+        });
+        html += `</div>`;
+    }
+    
+    // Insights section
+    if (cat.insights) {
+        const ins = cat.insights;
+        html += `
+            <div class="expense-tooltip-section">
+                <div class="expense-tooltip-insight">
+                    💡 Avg: <span>${fmt(ins.avg_amount || 0)}</span> per txn
+                    ${ins.largest_amount ? ` • Largest: <span>${fmt(ins.largest_amount)}</span> on ${ins.largest_date}` : ''}
+                </div>
+            </div>
+        `;
+    } else if (!cat.transactions_recent) {
+        // No transaction data yet - show helpful message
+        html += `
+            <div class="expense-tooltip-section">
+                <div class="expense-tooltip-insight" style="color: var(--text-muted);">
+                    💡 Update Code.gs and redeploy to see transaction details
+                </div>
+            </div>
+        `;
+    }
+    
+    tooltip.innerHTML = html;
+    tooltip.classList.add('visible');
+    moveExpenseTooltip(event);
+}
+
+function moveExpenseTooltip(event) {
+    const tooltip = document.getElementById('expenseTooltip');
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const padding = 15;
+    
+    let x = event.clientX + padding;
+    let y = event.clientY - padding;
+    
+    // Prevent going off-screen right
+    if (x + tooltipRect.width > window.innerWidth - padding) {
+        x = event.clientX - tooltipRect.width - padding;
+    }
+    
+    // Prevent going off-screen bottom
+    if (y + tooltipRect.height > window.innerHeight - padding) {
+        y = window.innerHeight - tooltipRect.height - padding;
+    }
+    
+    // Prevent going off-screen top
+    if (y < padding) {
+        y = padding;
+    }
+    
+    // Prevent going off-screen left
+    if (x < padding) {
+        x = padding;
+    }
+    
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+}
+
+function hideExpenseTooltip() {
+    document.getElementById('expenseTooltip').classList.remove('visible');
 }
 
 function getExpenseStatusClass(percent) {
