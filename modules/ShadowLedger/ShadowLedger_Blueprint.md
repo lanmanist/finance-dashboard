@@ -1,9 +1,9 @@
 # ShadowLedger Module - Unified Blueprint
 
 ```yaml
-version: v2.2.0
-last_updated: 2025-12-28 22:45:00 UTC+2
-status: Production (Full MVP + Income/Investment)
+version: v2.3.0
+last_updated: 2026-01-11 23:30:00 UTC+2
+status: Production (Full MVP + Income/Investment + Enhanced API)
 parent_system: Aaron Family Financial Model v6.1
 deployment: Live (Cloudflare + Render.com)
 cost: €0/month (100% serverless)
@@ -21,10 +21,11 @@ cost: €0/month (100% serverless)
 6. [Investment Tracking](#6-investment-tracking)
 7. [Budget Monitoring](#7-budget-monitoring)
 8. [Discord Integration](#8-discord-integration)
-9. [Implementation Details](#9-implementation-details)
-10. [Deployment Guide](#10-deployment-guide)
-11. [Roadmap](#11-roadmap)
-12. [Maintenance & Operations](#12-maintenance--operations)
+9. [Dashboard API](#9-dashboard-api)
+10. [Technical Implementation](#10-technical-implementation)
+11. [Deployment Guide](#11-deployment-guide)
+12. [Roadmap](#12-roadmap)
+13. [Maintenance & Operations](#13-maintenance--operations)
 
 ---
 
@@ -44,7 +45,7 @@ ShadowLedger is a **Discord-based expense, income, and investment tracking modul
 - Zero monthly cost (100% serverless)
 - AI-powered flexible input parsing
 
-### 1.2 Current Status: Production v2.2.0
+### 1.2 Current Status: Production v2.3.0
 
 **✅ ALL MVP FEATURES IMPLEMENTED (v2.0.0):**
 - Discord message parsing with flexible input formats
@@ -71,7 +72,13 @@ ShadowLedger is a **Discord-based expense, income, and investment tracking modul
 - SL_Investment_Log sheet with destination tracking
 - Support for Scalable, Revolut, Comdirect, Trade Republic, Other
 
-**🎯 Completed Features (1-16):**
+**✅ ENHANCED DASHBOARD API (v2.3.0):**
+- Enhanced `getExpenseBreakdown()` with transaction details
+- Per-category transaction arrays (recent + top by amount)
+- Category insights (avg, largest transaction)
+- Supports Dashboard expense hover tooltips
+
+**🎯 Completed Features (1-17):**
 
 | # | Feature | Version | Status |
 |---|---------|---------|--------|
@@ -91,12 +98,13 @@ ShadowLedger is a **Discord-based expense, income, and investment tracking modul
 | 14 | !invest command for transfers | v2.2 | ✅ |
 | 15 | !invest status command | v2.2 | ✅ |
 | 16 | SL_Investment_Log with destinations | v2.2 | ✅ |
+| 17 | Enhanced expense API with transactions | v2.3 | ✅ |
 
 ### 1.3 Technology Stack
 
 | Component | Technology | Cost | Status |
 |-----------|------------|------|--------|
-| Backend | Google Apps Script v2.2 | Free | ✅ Live |
+| Backend | Google Apps Script v2.3 | Free | ✅ Live |
 | Database | Google Sheets | Free | ✅ Live |
 | Interface | Discord Bot + Webhook | Free | ✅ Live |
 | Bot Host | Render.com Web Service | Free | ✅ Live |
@@ -114,7 +122,7 @@ Discord → Render.com Bot → Cloudflare Worker → Apps Script → Google Shee
 ### 1.4 Key Metrics
 
 - **Response Time:** <5 seconds (full chain latency)
-- **Budget Categories:** 17 (€4,090/month total)
+- **Budget Categories:** 17 (€4,110/month total)
 - **Built-in Patterns:** 58 merchant mappings
 - **Supported Users:** 2 (H/W with cross-recording)
 - **Uptime:** 24/7 (serverless architecture)
@@ -128,439 +136,341 @@ Discord → Render.com Bot → Cloudflare Worker → Apps Script → Google Shee
 ### 2.1 High-Level Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     SHADOWLEDGER v2.2 ARCHITECTURE                          │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  USER (Mobile/Desktop)                                                      │
-│       ↓                                                                     │
-│  ┌──────────────────┐                                                       │
-│  │    Discord       │  "45 rewe" / "!income 4200 salary h"                  │
-│  │   #expenses      │                                                       │
-│  └────────┬─────────┘                                                       │
-│           ↓ WebSocket                                                       │
-│  ┌──────────────────────────────────────────────────────────┐               │
-│  │          Discord Bot (Render.com)                        │               │
-│  │  • Node.js + discord.js                                  │               │
-│  │  • Keep-alive HTTP server (prevents sleep)               │               │
-│  │  • 750 hrs/month free (24/7 coverage)                    │               │
-│  └────────┬─────────────────────────────────────────────────┘               │
-│           ↓ POST /forward                                                   │
-│  ┌──────────────────────────────────────────────────────────┐               │
-│  │        Cloudflare Worker (Relay)                         │               │
-│  │  • Edge computing (global, <50ms)                        │               │
-│  │  • 100K requests/day free                                │               │
-│  └────────┬─────────────────────────────────────────────────┘               │
-│           ↓ POST to Apps Script                                             │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │        Google Apps Script v2.2 (Backend Logic)                       │   │
-│  │  ┌────────────────────────────────────────────────────────────────┐  │   │
-│  │  │ Command Router                                                 │  │   │
-│  │  │ • Expense logging (default)                                    │  │   │
-│  │  │ • !income → Income handler                                     │  │   │
-│  │  │ • !invest → Investment handler                                 │  │   │
-│  │  │ • !ta → Time Account handler                                   │  │   │
-│  │  │ • !status, !ytd, !undo → Query handlers                        │  │   │
-│  │  └────────────────────────────────────────────────────────────────┘  │   │
-│  └─────────┬────────────────────────────────────────────────────────────┘   │
-│            ↓ Write to Sheets                                                │
-│  ┌──────────────────────────────────────────────────────────┐               │
-│  │          Google Sheets (Database)                        │               │
-│  │  • ShadowLedger (expenses)                               │               │
-│  │  • SL_Budget (budget tracking)                           │               │
-│  │  • SL_Patterns (merchant rules)                          │               │
-│  │  • SL_Config (settings)                                  │               │
-│  │  • SL_Income_Log (income/TA) [NEW v2.1]                  │               │
-│  │  • SL_Investment_Log (investments) [NEW v2.2]            │               │
-│  └──────────────────────────────────────────────────────────┘               │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                     SHADOWLEDGER v2.3 ARCHITECTURE                              │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  USER (Mobile/Desktop)                                                          │
+│       ↓                                                                         │
+│  ┌──────────────────┐                                                           │
+│  │    Discord       │  "45 rewe" / "!income 4200 salary h"                      │
+│  │   #expenses      │                                                           │
+│  └────────┬─────────┘                                                           │
+│           ↓ WebSocket                                                           │
+│  ┌──────────────────────────────────────────────────────────┐                   │
+│  │          Discord Bot (Render.com)                        │                   │
+│  │  • Node.js + discord.js                                  │                   │
+│  │  • Keep-alive HTTP server (prevents sleep)               │                   │
+│  │  • 750 hrs/month free (24/7 coverage)                    │                   │
+│  └────────┬─────────────────────────────────────────────────┘                   │
+│           ↓ POST /forward                                                       │
+│  ┌──────────────────────────────────────────────────────────┐                   │
+│  │        Cloudflare Worker (Relay)                         │                   │
+│  │  • Edge computing (global, <50ms)                        │                   │
+│  │  • 100K requests/day free                                │                   │
+│  └────────┬─────────────────────────────────────────────────┘                   │
+│           ↓ POST to Apps Script                                                 │
+│  ┌──────────────────────────────────────────────────────────────────────────┐   │
+│  │        Google Apps Script v2.3 (Backend Logic)                           │   │
+│  │  ┌────────────────────────────────────────────────────────────────────┐  │   │
+│  │  │ Command Router                                                     │  │   │
+│  │  │ • Expense logging (default)                                        │  │   │
+│  │  │ • !income → Income handler                                         │  │   │
+│  │  │ • !invest → Investment handler                                     │  │   │
+│  │  │ • !ta → Time Account handler                                       │  │   │
+│  │  │ • !status, !ytd, !undo → Query handlers                            │  │   │
+│  │  └────────────────────────────────────────────────────────────────────┘  │   │
+│  │  ┌────────────────────────────────────────────────────────────────────┐  │   │
+│  │  │ Dashboard API (GET endpoints)                                      │  │   │
+│  │  │ • ?action=dashboard → Full financial data                          │  │   │
+│  │  │ • ?action=expenses&month=YYYY-MM → Category breakdown              │  │   │
+│  │  │ • ?action=test → Health check                                      │  │   │
+│  │  └────────────────────────────────────────────────────────────────────┘  │   │
+│  └─────────┬────────────────────────────────────────────────────────────────┘   │
+│            ↓ Write to Sheets                                                    │
+│  ┌──────────────────────────────────────────────────────────┐                   │
+│  │          Google Sheets (Database)                        │                   │
+│  │  • ShadowLedger (expenses)                               │                   │
+│  │  • SL_Budget (budget tracking)                           │                   │
+│  │  • SL_Patterns (merchant rules)                          │                   │
+│  │  • SL_Config (settings)                                  │                   │
+│  │  • SL_Income_Log (income/TA)                             │                   │
+│  │  • SL_Investment_Log (investments)                       │                   │
+│  └──────────────────────────────────────────────────────────┘                   │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.2 Component Details
 
 #### Discord Bot (Render.com)
-- **Language:** Node.js
-- **Library:** discord.js v14
-- **Hosting:** Render.com Web Service (free tier)
-- **Features:**
-  - MESSAGE CONTENT INTENT enabled
-  - Keep-alive HTTP server on port 10000
-  - Self-ping every 14 minutes
-  - Channel filtering (#expenses only)
+- **Runtime:** Node.js + discord.js
+- **Purpose:** Listen to #expenses channel, forward messages
+- **Keep-alive:** HTTP server on port 3000, self-ping every 14 minutes
+- **Env vars:** `DISCORD_TOKEN`, `CLOUDFLARE_WORKER_URL`
 
-#### Cloudflare Worker (Relay)
-- **Runtime:** Cloudflare Workers (V8 isolate)
-- **Purpose:** Relay messages to Apps Script
-- **Configuration:** `APPS_SCRIPT_URL` environment variable
-- **Limits:** 100,000 requests/day
+#### Cloudflare Worker
+- **Purpose:** Relay messages to Apps Script, add logging
+- **Secret:** `APPS_SCRIPT_URL` stored securely
+- **Benefits:** Can update Apps Script URL without redeploying bot
 
-#### Google Apps Script (Backend)
-- **Version:** 2.2.0
-- **Key Functions:**
-  - `doPost()` - Main entry from Cloudflare
-  - `doGet()` - Dashboard API endpoints
-  - `processDiscordMessage()` - Route to handlers
-  - `handleCommand()` - Command dispatcher
-  - `handleIncomeCommand()` - Income logging
-  - `handleInvestCommand()` - Investment logging
-  - `handleTACommand()` - Time Account logging
-
-### 2.3 API Endpoints (doGet)
-
-| Endpoint | Purpose | Example |
-|----------|---------|---------|
-| `?action=test` | Health check | Returns version, features |
-| `?action=dashboard` | Financial data for Sankey | Dashboard integration |
-| `?action=expenses&month=YYYY-MM` | Expense breakdown | Category totals |
+#### Google Apps Script
+- **Purpose:** All business logic, data storage, Discord responses
+- **Deployment:** Web App with "Anyone" access
+- **Routing:** `doPost()` for Discord, `doGet()` for Dashboard API
 
 ---
 
 ## 3. DATA SCHEMA
 
-### 3.1 Google Sheets Structure
+### 3.1 ShadowLedger (Expenses)
 
-**Sheet:** `FinanceSource_v6.1.xlsx`
+| Column | Type | Description |
+|--------|------|-------------|
+| A | String | txn_id (SL-YYYYMMDD-HHMMSS-XXX) |
+| B | DateTime | created_at |
+| C | DateTime | txn_date |
+| D | Number | amount |
+| E | String | merchant |
+| F | String | description |
+| G | String | category |
+| H | String | spender (H/W) |
+| I | String | inputter (H/W) |
+| J | String | source (Discord) |
+| K | String | categorization (ai/pattern/user) |
+| L | Boolean | user_override |
+| M | DateTime | override_at |
+| N | String | raw_input |
+| O | String | month_key ('YYYY-MM) |
 
-| Tab | Purpose | Version |
-|-----|---------|---------|
-| ShadowLedger | Transaction log (expenses) | v2.0 |
-| SL_Budget | Monthly budget tracking | v2.0 |
-| SL_Patterns | Merchant-to-category mappings | v2.0 |
-| SL_Config | System configuration | v2.0 |
-| SL_Income_Log | Income and TA tracking | v2.1 |
-| SL_Investment_Log | Investment transfers | v2.2 |
+### 3.2 SL_Income_Log
 
-### 3.2 ShadowLedger Tab (Expenses)
+| Column | Type | Description |
+|--------|------|-------------|
+| A | String | ID (INC-YYYYMMDD-HHMMSS) |
+| B | String | MonthKey (YYYY-MM) |
+| C | String | Type (salary/youtube/other/ta_h/ta_w) |
+| D | Number | Amount |
+| E | String | Spender (H/W or null) |
+| F | String | Description |
+| G | DateTime | Timestamp |
+| H | String | InputBy |
 
-| Column | Name | Type | Example |
-|--------|------|------|---------|
-| A | txn_id | Text | SL-20251217-143025-742 |
-| B | created_at | Datetime | 2025-12-17T14:30:25 |
-| C | txn_date | Date | 2025-12-17 |
-| D | amount | Number | 45.00 |
-| E | merchant | Text | Rewe |
-| F | merchant_orig | Text | rewe |
-| G | category | Text | Groceries + Food |
-| H | categorization | Text | pattern |
-| I | spender | Text | H |
-| J | inputter | Text | W |
+### 3.3 SL_Investment_Log
 
-**Transaction ID Format:** `SL-YYYYMMDD-HHmmss-XXX`
+| Column | Type | Description |
+|--------|------|-------------|
+| A | String | ID (INV-YYYYMMDD-HHMMSS) |
+| B | Date | Date |
+| C | String | MonthKey (YYYY-MM) |
+| D | Number | Amount |
+| E | String | Destination |
+| F | String | Notes |
+| G | DateTime | Timestamp |
+| H | String | InputBy |
 
-### 3.3 SL_Budget Tab
+### 3.4 SL_Budget
 
-| Column | Name | Type | Example |
-|--------|------|------|---------|
-| A | category | Text | Groceries + Food |
-| B | budget | Number | 600 |
-| C | month_key | Text | '2025-12 |
-| D | spent | Formula | =SUMIFS(...) |
-| E | remaining | Formula | =B2-D2 |
-| F | percent | Formula | =D2/B2 |
+| Column | Type | Description |
+|--------|------|-------------|
+| A | String | Category |
+| B | Number | Budget |
+| C | String | Month_Key ('YYYY-MM) |
 
-### 3.4 SL_Patterns Tab
+### 3.5 SL_Patterns
 
-| Column | Name | Type | Example |
-|--------|------|------|---------|
-| A | pattern | Text | rewe |
-| B | category | Text | Groceries + Food |
+| Column | Type | Description |
+|--------|------|-------------|
+| A | String | Pattern (regex or exact match) |
+| B | String | Category |
+| C | String | Notes |
 
-**Built-in Patterns (58 total):** rewe, lidl, edeka, aldi, shell, aral, amazon, zalando, lieferando, etc.
+### 3.6 SL_Config
 
-### 3.5 SL_Config Tab
+| Column | Type | Description |
+|--------|------|-------------|
+| A | String | Key |
+| B | String | Value |
 
-| Key | Value | Description |
-|-----|-------|-------------|
-| discord_webhook_url | https://discord.com/... | Response webhook |
-| h_discord_username | username | Husband's Discord |
-| w_discord_username | username | Wife's Discord |
-| gemini_api_key | AIza... | Optional AI key |
-
-### 3.6 SL_Income_Log Tab (v2.1)
-
-| Column | Header | Type | Example |
-|--------|--------|------|---------|
-| A | ID | Text | INC-20251228-143025 |
-| B | MonthKey | Text | 2025-12 |
-| C | Type | Text | salary / youtube / other / ta_h / ta_w |
-| D | Amount | Number | 4200.00 |
-| E | Spender | Text | H / W / (blank) |
-| F | Description | Text | Optional notes |
-| G | Timestamp | Datetime | 2025-12-28T14:30:25 |
-| H | InputBy | Text | Discord username |
-
-**Auto-created** on first `!income` or `!ta` command if not exists.
-
-### 3.7 SL_Investment_Log Tab (v2.2)
-
-| Column | Header | Type | Example |
-|--------|--------|------|---------|
-| A | ID | Text | INV-20251228-143025 |
-| B | Date | Date | 2025-12-28 |
-| C | MonthKey | Text | 2025-12 |
-| D | Amount | Number | 500.00 |
-| E | Destination | Text | scalable |
-| F | Notes | Text | Monthly DCA |
-| G | Timestamp | Datetime | 2025-12-28T14:30:25 |
-| H | InputBy | Text | Discord username |
-
-**Auto-created** on first `!invest` command if not exists.
-
-**Valid Destinations:** scalable, revolut, comdirect, trade_republic, other
+**Config Keys:**
+- `discord_webhook_url` - For bot responses
+- `gemini_api_key` - For AI parsing
+- `h_discord_username` - Husband's Discord username
+- `w_discord_username` - Wife's Discord username
 
 ---
 
 ## 4. EXPENSE LOGGING
 
-### 4.1 Input Formats (Flexible Order)
+### 4.1 Input Formats
 
-**Basic Format:**
-```
-amount merchant [spender] [date]
-```
+ShadowLedger accepts flexible input formats. All of these work:
 
-**All these work (any order):**
 ```
 45 rewe
-rewe 45
-45€ rewe
-rewe 45€
-18e rewe          # 'e' accepted as euro symbol
-45 rewe w
-45 rewe wife
-w 45 rewe
-wife rewe 45
-45 rewe yesterday
-45 rewe 15.12
-45 rewe w 15.12
 rewe 45€ wife yesterday
-football ticket 25 anh
+27 lidl 01.03 husband
+groceries 32 aldi
 ```
 
-**Multi-Transaction (Batch):**
+### 4.2 Parsing Pipeline
+
+1. **Gemini AI Parsing** (primary)
+   - Extracts: amount, merchant, category, spender, date, description
+   - Model: `gemini-1.5-flash`
+   - Temperature: 0.1 (deterministic)
+
+2. **Regex Fallback** (if Gemini fails)
+   - Amount: `(\d+(?:[.,]\d+)?)\s*[€e]?`
+   - Spender: Match against alias list
+   - Date: `\d{1,2}[./]\d{1,2}` or natural language
+   - Merchant: Remaining text
+
+### 4.3 Categorization
+
+**Priority Order:**
+1. User-specified category in input
+2. Pattern match from SL_Patterns
+3. Gemini AI suggestion
+4. Default to "Buffer"
+
+### 4.4 Multi-Transaction Support
+
+Send multiple expenses in one message using newlines (Shift+Enter):
+
 ```
 45 rewe
-30 lidl
-15 dm
+32 dm
+15 backerei
 ```
-Use Shift+Enter for new lines.
 
-### 4.2 Spender Aliases
-
-| Spender | Aliases |
-|---------|---------|
-| **H** (Husband) | h, husband, nha, anh, aaron |
-| **W** (Wife) | w, wife, trang, chang, em |
-
-**Default:** Uses inputter's identity if no spender specified.
-
-### 4.3 Date Parsing
-
-| Format | Example |
-|--------|---------|
-| Relative | yesterday, today, tomorrow |
-| Day.Month | 15.12, 06.03, 1.1 |
-| Month/Day | 12/15, 3/6 |
-| Natural | march 6, december 15 |
-
-### 4.4 Categories (17 Total)
-
-```javascript
-const CATEGORIES = [
-  'Childcare',
-  'Family Support',
-  'Groceries + Food',
-  'Utilities',
-  'Car',
-  'Shopping',
-  'Travel & Leisure',
-  'Insurance',
-  'Eat Out & Food delivery',
-  'Gifts',
-  'Entertainment',
-  'Health & beauty',
-  'Home improvement',
-  'Business & Subscription',
-  'Donation',
-  'Special IO',
-  'Buffer'  // Default for unmatched
-];
-```
+Each line is processed independently with individual confirmations.
 
 ---
 
 ## 5. INCOME TRACKING
 
-### 5.1 Overview (v2.1)
+### 5.1 Commands
 
-Income tracking enables logging salary, YouTube revenue, and other income directly via Discord. Data flows to `SL_Income_Log` sheet and integrates with the Monthly_Model.
+| Command | Purpose | Target Month |
+|---------|---------|--------------|
+| `!income [amt] salary h` | Log H net salary | Previous |
+| `!income [amt] salary w` | Log W net salary | Previous |
+| `!income [amt] youtube` | Log YouTube gross | Previous |
+| `!income [amt] other [desc]` | Log other income | Previous |
+| `!ta [hrs] h` | Log H TA hours | Previous |
+| `!ta [hrs] w` | Log W TA hours | Previous |
+| `!income status` | Check completion | Previous |
 
-**Key Design Decisions:**
-- **ADR-018:** Income targets PREVIOUS month (not current)
-- **ADR-019:** Salary requires spender (H/W); YouTube does not
-- **ADR-020:** Update-in-place for duplicate entries (prevents double-counting)
+### 5.2 Income Types
 
-### 5.2 Income Command
+| Type | Column | Requires Spender | Label |
+|------|--------|------------------|-------|
+| salary | net_salary | Yes (H/W) | Net Salary |
+| youtube | yt_gross | No | YouTube Gross |
+| other | other_fam_net_inc | No | Other Income |
 
-**Format:**
-```
-!income [amount] [type] [spender] [description]
-```
+### 5.3 Update-in-Place Logic
 
-**Types:**
+Income entries use **update-in-place** (unlike expenses which append):
+- Same MonthKey + Type + Spender = Update existing row
+- New combination = Append new row
 
-| Type | Requires Spender | Example |
-|------|------------------|---------|
-| salary | Yes (H/W) | `!income 4200 salary h` |
-| youtube | No | `!income 1200 youtube` |
-| other | No | `!income 50 other payback` |
+### 5.4 Automated Reminders
 
-**Examples:**
-```
-!income 4200 salary h       # Husband's net salary
-!income 3800 salary w       # Wife's net salary
-!income 1200 youtube        # YouTube gross
-!income 50 other payback    # Other income with description
-```
+Trigger function `checkAndSendIncomeReminder()` runs daily at 8-9am.
+Sends reminder on days: 1, 6, 11, 16, 21, 26 if any required inputs missing.
 
-### 5.3 Time Account Command
-
-**Format:**
-```
-!ta [hours] [h/w]
-```
-
-**Examples:**
-```
-!ta 45 h    # Husband added 45 hours
-!ta 38 w    # Wife added 38 hours
-```
-
-Logs to `SL_Income_Log` as type `ta_h` or `ta_w`.
-
-### 5.4 Income Status Command
-
-```
-!income status
-```
-
-Shows completion status for previous month:
-- ✅ H Net Salary: €4,200.00
-- ✅ W Net Salary: €3,800.00
-- ✅ YouTube Gross: €1,200.00
-- ➖ Other Income: €0 (assumed)
-- ✅ H TA Hours: 45 hrs
-- ✅ W TA Hours: 38 hrs
-
-### 5.5 Automated Reminders
-
-**Trigger:** Time-driven (8-9 AM daily)
-**Active Days:** 1, 6, 11, 16, 21, 26 of each month
-**Behavior:** Checks if previous month's inputs are complete; sends Discord reminder if not.
-
-**Setup Required:** Create time trigger for `checkAndSendIncomeReminder` function in Apps Script.
+**Required inputs checked:**
+- H Net Salary
+- W Net Salary
+- YouTube Gross
+- H TA Hours
+- W TA Hours
 
 ---
 
 ## 6. INVESTMENT TRACKING
 
-### 6.1 Overview (v2.2)
+### 6.1 Commands
 
-Investment tracking logs transfers to investment accounts. Unlike income (which reconciles past months), investments are logged in real-time.
+| Command | Purpose | Target Month |
+|---------|---------|--------------|
+| `!invest [amt] [dest] [notes]` | Log transfer | Current |
+| `!invest status` | Monthly summary | Current |
 
-**Key Design Decisions:**
-- **ADR-023:** Investment logs to CURRENT month
-- **ADR-024:** Each entry creates new row (no update-in-place)
-- **ADR-025:** Destination is required from predefined list
+### 6.2 Destinations
 
-### 6.2 Invest Command
+- `scalable` - Scalable Capital
+- `revolut` - Revolut Trading
+- `comdirect` - Comdirect Depot
+- `trade_republic` - Trade Republic
+- `other` - Other destination
 
-**Format:**
-```
-!invest [amount] [destination] [notes]
-```
+### 6.3 Append-Only Logic
 
-**Valid Destinations:**
-- scalable
-- revolut
-- comdirect
-- trade_republic
-- other
-
-**Examples:**
-```
-!invest 500 scalable              # Basic transfer
-!invest 1000 revolut ETF purchase # With notes
-!invest 2000 comdirect monthly DCA
-```
-
-### 6.3 Investment Status Command
-
-```
-!invest status
-```
-
-Shows current month's investment transfers:
-- By Destination breakdown
-- Recent transfers (last 5)
-- Total amount and count
-
-### 6.4 Income vs Investment Comparison
-
-| Aspect | Income (!income) | Investment (!invest) |
-|--------|------------------|----------------------|
-| Target month | Previous | Current |
-| Update behavior | Update-in-place | Append new row |
-| When to use | After payslip (reconciliation) | When transfer happens |
-| Spender required | For salary only | N/A |
+Unlike income, each `!invest` command creates a new row (multiple transfers per month supported).
 
 ---
 
 ## 7. BUDGET MONITORING
 
-### 7.1 Budget Status Command
+### 7.1 Categories (17 Total)
 
-```
-!status
-```
+| Category | Monthly Budget |
+|----------|---------------|
+| Childcare | €200 |
+| Family Support | €300 |
+| Groceries + Food | €650 |
+| Utilities | €400 |
+| Car | €300 |
+| Shopping | €200 |
+| Travel & Leisure | €300 |
+| Insurance | €150 |
+| Eat Out & Food delivery | €350 |
+| Gifts | €200 |
+| Entertainment | €100 |
+| Health & beauty | €150 |
+| Home improvement | €150 |
+| Business & Subscription | €200 |
+| Donation | €50 |
+| Special IO | €310 |
+| Buffer | €100 |
+| **TOTAL** | **€4,110** |
 
-Shows all categories with spent/budget/percentage and color-coded status.
+### 7.2 Status Indicators
 
-**Status Indicators:**
-- 🟢 Green: <50% used
-- 🟡 Yellow: 50-79% used
-- 🟠 Orange: 80-99% used
-- 🔴 Red: ≥100% used (over budget)
+| Emoji | Percentage | Meaning |
+|-------|------------|---------|
+| 🟢 | 0-49% | On track |
+| 🟡 | 50-79% | Caution |
+| 🟠 | 80-99% | Warning |
+| 🔴 | 100%+ | Over budget |
 
-### 7.2 Budget Left Command
+### 7.3 Commands
 
-```
-!budgetleft
-```
-
-Shows remaining budget for each category.
-
-### 7.3 YTD Command
-
-```
-!ytd
-```
-
-Year-to-date spending by category.
-
-### 7.4 Today/Week Commands
-
-```
-!today    # Today's transactions
-!week     # This week's transactions
-```
+| Command | Output |
+|---------|--------|
+| `!status` | Full budget table with all categories |
+| `!budgetleft` | Remaining budget per category |
+| `!ytd` | Year-to-date spending comparison |
 
 ---
 
 ## 8. DISCORD INTEGRATION
 
-### 8.1 Full Command Reference
+### 8.1 Spender Aliases
+
+| Husband | Wife |
+|---------|------|
+| h | w |
+| husband | wife |
+| nha | trang |
+| anh | chang |
+| aaron | em |
+
+### 8.2 Date Formats
+
+| Format | Example | Result |
+|--------|---------|--------|
+| Relative | yesterday | Previous day |
+| Relative | today | Current day |
+| Relative | tomorrow | Next day |
+| DD.MM | 06.03 | March 6 (current year) |
+| DD/MM | 6/3 | March 6 (current year) |
+| Natural | march 6 | March 6 |
+
+### 8.3 All Commands Reference
 
 ```
 📝 Expense Logging (flexible format):
@@ -607,235 +517,258 @@ yesterday, today, tomorrow
 !help - Show this message
 ```
 
-### 8.2 Response Format
-
-**Expense Logged:**
-```
-✅ **Logged:** €45.00 → Groceries + Food
-📝 Merchant: Rewe
-👤 Spender: H
-🏷️ Category: Groceries + Food (pattern)
-
-─────────────────────────────
-📊 **BUDGET STATUS**
-─────────────────────────────
-**Groceries + Food:** €245/€600 (41%) 🟢
-─────────────────────────────
-```
-
-**Batch Logged:**
-```
-📋 **BATCH LOGGED** (3/3)
-─────────────────────────────
-✦ €45.00 → Groceries + Food
-✦ €30.00 → Groceries + Food
-✦ €15.00 → Health & beauty
-─────────────────────────────
-**Total:** €90.00
-
-📊 **Budget Status:**
-🟢 Groceries + Food: €275/€600 (46%)
-🟢 Health & beauty: €15/€100 (15%)
-```
-
 ---
 
-## 9. IMPLEMENTATION DETAILS
+## 9. DASHBOARD API
 
-### 9.1 Architectural Decision Records (ADRs)
+### 9.1 Endpoints
 
-**ADR-011: Transaction ID Format**
-- Format: `SL-YYYYMMDD-HHmmss-XXX` (seconds + 3-digit random)
-- Prevents collisions within same minute
+| Endpoint | Method | Returns |
+|----------|--------|---------|
+| `?action=dashboard` | GET | Full financial data for Sankey (204 months) |
+| `?action=expenses&month=YYYY-MM` | GET | Category expense breakdown with transactions |
+| `?action=test` | GET | Health check + endpoint list |
+| (POST body) | POST | ShadowLedger Discord message processing |
 
-**ADR-012: Row-by-ID Deletion**
-- Undo searches by txn_id, not row number
-- Prevents race conditions if other transactions added
+### 9.2 Expense API Response Schema (v2.3)
 
-**ADR-013: Timestamp Formatting**
-- All dates formatted as `yyyy-MM-dd'T'HH:mm:ss` before sheet write
-- Prevents UTC misinterpretation by Google Sheets
-
-**ADR-014: Euro Symbol Flexibility**
-- Accepts both `€` and `e` as currency indicator
-- Constraint: `e` must not be followed by letters
-
-**ADR-015: Spender Word Boundary**
-- Uses space-based separation, not `\b` regex
-- Prevents "rewe w" → "ree" bug
-
-**ADR-016: Gemini Fallback**
-- Gemini AI is primary parser
-- Regex fallback if API unavailable
-- Pattern matching before AI for known merchants
-
-**ADR-017: Income Scope**
-- Extend ShadowLedger to income tracking
-- Same Discord interface, unified experience
-
-**ADR-018: Income Targets Previous Month**
-- Payslips arrive at month-end
-- AdSense finalizes 3rd-5th of following month
-
-**ADR-019: Salary Requires Spender**
-- Two salaries (H/W), one YouTube stream
-- YouTube doesn't need spender specification
-
-**ADR-020: Update-in-Place for Income**
-- Duplicate type+spender+month updates existing row
-- Prevents double-counting when correcting entries
-
-**ADR-021: Separate Income Sheet**
-- `SL_Income_Log` separate from expense ledger
-- Different schema (MonthKey vs TxnDate)
-
-**ADR-022: Investment Scope**
-- Track transfers to investment accounts
-- Transfer amounts only (not portfolio balances)
-
-**ADR-023: Investment Targets Current Month**
-- Real-time logging as transfers happen
-- Unlike income reconciliation
-
-**ADR-024: Investment Append Mode**
-- Each `!invest` creates new row
-- Multiple transfers per month are valid
-
-**ADR-025: Required Destination**
-- Predefined list: scalable, revolut, comdirect, trade_republic, other
-- Enables breakdown reporting
-
-**ADR-026: Separate Investment Sheet**
-- `SL_Investment_Log` separate from income
-- Different primary key (Date vs MonthKey)
-
-### 9.2 Parsing Logic (Technical)
-
-**Spender Detection Regex:**
-```javascript
-// Space-based separation to avoid "rewe w" bug
-const spenderRegex = /(?:^|\s)(h|w|husband|wife|nha|anh|aaron|trang|chang|em)(?:\s|$)/i;
-```
-
-**Amount Extraction:**
-```javascript
-// Handles €, e suffix, and plain numbers
-const amountRegex = /(\d+(?:[.,]\d{1,2})?)\s*[€e]?|[€e]\s*(\d+(?:[.,]\d{1,2})?)/i;
-```
-
-**Income Entry Update Logic:**
-```javascript
-// Check for existing entry (same type + spender + month)
-for (let i = 1; i < data.length; i++) {
-  if (data[i][1] === monthKey && 
-      data[i][2] === type && 
-      data[i][4] === (spender || '')) {
-    existingRow = i + 1;
-    break;
+```json
+{
+  "success": true,
+  "month": "2026-01",
+  "month_name": "January 2026",
+  "categories": [
+    {
+      "name": "Groceries + Food",
+      "spent": 523.45,
+      "budget": 650,
+      "percent": 81,
+      "status": "🟠",
+      "transaction_count": 12,
+      "transactions_recent": [
+        { "date": "15.01", "merchant": "Rewe", "amount": 45.32 },
+        { "date": "14.01", "merchant": "Lidl", "amount": 32.10 }
+      ],
+      "transactions_top": [
+        { "date": "10.01", "merchant": "Metro", "amount": 156.78 },
+        { "date": "15.01", "merchant": "Rewe", "amount": 45.32 }
+      ],
+      "insights": {
+        "avg_amount": 43.62,
+        "largest_amount": 156.78,
+        "largest_date": "10.01",
+        "largest_merchant": "Metro"
+      }
+    }
+  ],
+  "summary": {
+    "total_spent": 2847.32,
+    "total_budget": 4110,
+    "total_percent": 69,
+    "transaction_count": 47,
+    "budget_available": true
   }
 }
-// Update existing or append new
 ```
 
-### 9.3 Bug Fixes History
+### 9.3 Status Emoji Logic
 
-| Bug | Root Cause | Fix | ADR |
-|-----|------------|-----|-----|
-| Timestamps 9 hours off | Raw Date() written | Format before write | ADR-013 |
-| "rewe w" → "ree" | `\b` word boundary | Space-based regex | ADR-015 |
-| Transaction ID collisions | Same minute | Add seconds + random | ADR-011 |
-| Undo row shift | Row numbers change | Search by ID at delete | ADR-012 |
-| month_key mismatch | Apostrophe prefix | Strip `'` when comparing | v2.0 |
+```javascript
+function getStatusEmojiDashboard(percent) {
+  if (percent === null) return 'N/A';
+  if (percent >= 100) return '🔴';
+  if (percent >= 80) return '🟠';
+  if (percent >= 50) return '🟡';
+  return '🟢';
+}
+```
 
 ---
 
-## 10. DEPLOYMENT GUIDE
+## 10. TECHNICAL IMPLEMENTATION
 
-### 10.1 Prerequisites
+### 10.1 Gemini AI Parsing
 
-1. Google Account with Apps Script
-2. Discord Account and server
-3. Cloudflare Account (free tier)
-4. Render.com Account (free tier)
-5. GitHub Account
-6. Gemini API Key (optional)
+**Prompt Structure:**
+```
+Parse this expense input and return JSON only (no markdown, no explanation):
+Input: "${input}"
 
-### 10.2 Setup Reference
+Extract:
+- amount: number (required)
+- merchant: string (required, the store/place name)
+- category: string or null (if explicitly mentioned)
+- spender: "H" or "W" or null
+- date: ISO date string or null
+- description: string or null
 
-**Detailed Setup Guide:** `ShadowLedger_Cloudflare_Migration_Guide_v4.md`
+Return ONLY valid JSON.
+```
 
-**Quick Steps:**
-1. Google Sheets: Ensure all tabs exist
-2. Apps Script: Deploy `ShadowLedger_Code.gs` as web app
-3. Cloudflare: Create worker with `APPS_SCRIPT_URL` env var
-4. GitHub: Create bot repository
-5. Render.com: Deploy bot with env vars
-6. Discord: Create bot with MESSAGE CONTENT INTENT
+**API Call:**
+```javascript
+const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+const payload = {
+  contents: [{ parts: [{ text: prompt }] }],
+  generationConfig: { temperature: 0.1, maxOutputTokens: 250 }
+};
+```
 
-### 10.3 Income Reminder Setup
+### 10.2 Regex Parsing (Fallback)
 
-To enable automated income reminders:
+**Amount Pattern:**
+```javascript
+const amountMatch = input.match(/(\d+(?:[.,]\d+)?)\s*[€e](?![a-df-z])/i);
+if (!amountMatch) {
+  amountMatch = input.match(/(?:^|\s)(\d+(?:[.,]\d+)?)/);
+}
+```
 
-1. Open Apps Script editor
-2. Click ⏰ Triggers (left sidebar)
-3. Add Trigger:
-   - Function: `checkAndSendIncomeReminder`
-   - Event source: Time-driven
-   - Type: Day timer
-   - Time: 8am to 9am
-4. Save
+**Spender Pattern:**
+```javascript
+const aliasPattern = Object.keys(SPENDER_ALIASES).join('|');
+const spenderRegex = new RegExp(`(?:^|\\s)(${aliasPattern})(?:\\s|$)`, 'i');
+```
 
-### 10.4 Testing Checklist
+### 10.3 Date Parsing
+
+**Natural Language:**
+- "yesterday" → subtract 1 day
+- "today" → current date
+- "tomorrow" → add 1 day
+- Month names: "march 6", "6th march"
+
+**Numeric:**
+- DD.MM: `(\d{1,2})\.(\d{1,2})`
+- DD/MM: `(\d{1,2})/(\d{1,2})`
+- Full: `(\d{1,2})[./](\d{1,2})[./](\d{2,4})`
+
+### 10.4 Transaction ID Generation
+
+```javascript
+function generateTxnId() {
+  const now = new Date();
+  const dateStr = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyyMMdd');
+  const timeStr = Utilities.formatDate(now, CONFIG.TIMEZONE, 'HHmmss');
+  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `SL-${dateStr}-${timeStr}-${rand}`;
+}
+```
+
+### 10.5 Budget Calculation
+
+```javascript
+function calculateBudgetStatus(category, monthKey) {
+  const budgetSheet = getSheet(CONFIG.SHEETS.BUDGET);
+  const ledgerSheet = getSheet(CONFIG.SHEETS.LEDGER);
+  
+  // Get budget for category
+  const budget = getBudgetForCategory(category, monthKey);
+  
+  // Sum transactions for month
+  const spent = sumTransactionsForMonth(category, monthKey);
+  
+  const percent = budget > 0 ? spent / budget : 0;
+  
+  return {
+    spent: spent,
+    budget: budget,
+    percent: percent,
+    status: getStatusEmoji(percent)
+  };
+}
+```
+
+---
+
+## 11. DEPLOYMENT GUIDE
+
+### 11.1 Google Apps Script
+
+1. Open Google Sheets (FinanceSource_v6_1)
+2. Extensions → Apps Script
+3. Paste Code.gs content
+4. Deploy → New deployment → Web app
+5. Execute as: Me, Who has access: Anyone
+6. Copy deployment URL
+
+### 11.2 Cloudflare Worker
+
+1. Login to Cloudflare Dashboard
+2. Workers & Pages → Create Worker
+3. Name: `shadowledger-relay`
+4. Paste worker code
+5. Settings → Variables → Add Secret: `APPS_SCRIPT_URL`
+6. Deploy
+
+### 11.3 Render.com Bot
+
+1. Create GitHub repo with bot code
+2. Login to Render.com
+3. New → Web Service → Connect repo
+4. Environment: Node
+5. Add env vars: `DISCORD_TOKEN`, `CLOUDFLARE_WORKER_URL`
+6. Deploy
+
+### 11.4 Apps Script Trigger Setup
+
+1. In Apps Script, click Triggers (clock icon)
+2. Add Trigger
+3. Function: `checkAndSendIncomeReminder`
+4. Event source: Time-driven → Day timer → 8am to 9am
+
+### 11.5 Testing Checklist
 
 - [ ] Bot online (green dot)
 - [ ] `45 rewe` → Expense logged
 - [ ] `!status` → Budget table shows
-- [ ] `!income 100 salary h` → Income logged (to previous month)
+- [ ] `!income 100 salary h` → Income logged
 - [ ] `!income status` → Shows completion
-- [ ] `!invest 100 scalable` → Investment logged (to current month)
+- [ ] `!invest 100 scalable` → Investment logged
 - [ ] `!invest status` → Shows transfers
 - [ ] `!ta 10 h` → TA hours logged
 - [ ] `!undo` → Confirmation shows
 - [ ] `!help` → Full command list
+- [ ] `?action=expenses&month=2026-01` → Returns transactions
 
 ---
 
-## 11. ROADMAP
+## 12. ROADMAP
 
-### 11.1 Completed Features (v2.0-2.2)
+### 12.1 Completed Features (v2.0-2.3)
 
-All features 1-16 are now **IMPLEMENTED**. See Section 1.2.
+All features 1-17 are now **IMPLEMENTED**. See Section 1.2.
 
-### 11.2 Future Enhancements (Post-MVP)
+### 12.2 Future Enhancements (Post-MVP)
 
 **🟢 HIGH PRIORITY - Quick Wins**
 
 | # | Feature | Effort | Impact |
 |---|---------|--------|--------|
-| 17 | Pattern Learning (auto-suggest after 5+ same merchant) | 5-6h | High |
-| 18 | Historical Data Import (CSV upload) | 3-4h | High |
-| 19 | Category Editing (!recategorize) | 3-4h | Medium |
-| 20 | Scheduled Daily Summary (21:00 CET) | 3-4h | High |
+| 18 | Pattern Learning (auto-suggest after 5+ same merchant) | 5-6h | High |
+| 19 | Historical Data Import (CSV upload) | 3-4h | High |
+| 20 | Category Editing (!recategorize) | 3-4h | Medium |
+| 21 | Scheduled Daily Summary (21:00 CET) | 3-4h | High |
 
 **🔵 MEDIUM PRIORITY - Value Additions**
 
 | # | Feature | Effort | Impact |
 |---|---------|--------|--------|
-| 21 | Scheduled Weekly Summary | 2-3h | Medium |
-| 22 | Receipt Image Recognition (OCR) | 8-10h | High |
-| 23 | Budget Adjustment Commands | 4-5h | Medium |
-| 24 | Manual Entry Guide (documentation) | 1-2h | Low |
+| 22 | Scheduled Weekly Summary | 2-3h | Medium |
+| 23 | Receipt Image Recognition (OCR) | 8-10h | High |
+| 24 | Budget Adjustment Commands | 4-5h | Medium |
+| 25 | Manual Entry Guide (documentation) | 1-2h | Low |
 
 **🟣 LOW PRIORITY - Nice to Have**
 
 | # | Feature | Effort | Impact |
 |---|---------|--------|--------|
-| 25 | Recurring Expenses Auto-Log | 4-5h | Medium |
-| 26 | Multi-Currency Support | 6-8h | Low |
-| 27 | Voice Input (Voice Notes) | 8-10h | Medium |
-| 28 | Analytics Dashboard (charts) | 10-12h | Medium |
+| 26 | Recurring Expenses Auto-Log | 4-5h | Medium |
+| 27 | Multi-Currency Support | 6-8h | Low |
+| 28 | Voice Input (Voice Notes) | 8-10h | Medium |
+| 29 | Analytics Dashboard (charts) | 10-12h | Medium |
 
-### 11.3 Technical Debt
+### 12.3 Technical Debt
 
 | Issue | Impact | Effort | Priority |
 |-------|--------|--------|----------|
@@ -845,7 +778,7 @@ All features 1-16 are now **IMPLEMENTED**. See Section 1.2.
 | Code modularization | Maintainability | 8-10h | Low |
 | Unit test coverage | Bug prevention | 6-8h | Low |
 
-### 11.4 Integration Ideas
+### 12.4 Integration Ideas
 
 - 💳 Bank APIs: Auto-import transactions
 - 📧 Email parsing: Receipt emails
@@ -854,9 +787,9 @@ All features 1-16 are now **IMPLEMENTED**. See Section 1.2.
 
 ---
 
-## 12. MAINTENANCE & OPERATIONS
+## 13. MAINTENANCE & OPERATIONS
 
-### 12.1 Daily Operations
+### 13.1 Daily Operations
 
 **User Actions:**
 - Log expenses via Discord
@@ -868,7 +801,7 @@ All features 1-16 are now **IMPLEMENTED**. See Section 1.2.
 - Keep-alive pings (14 min intervals)
 - Budget formula recalculation
 
-### 12.2 Monthly Tasks
+### 13.2 Monthly Tasks
 
 **Start of Month:**
 1. Run `!income status` to check previous month completion
@@ -881,7 +814,7 @@ All features 1-16 are now **IMPLEMENTED**. See Section 1.2.
 3. Review AI-categorized items
 4. Add new patterns if needed
 
-### 12.3 Health Checks
+### 13.3 Health Checks
 
 | Component | Check | Location |
 |-----------|-------|----------|
@@ -890,7 +823,7 @@ All features 1-16 are now **IMPLEMENTED**. See Section 1.2.
 | Cloudflare | Worker active | Dashboard |
 | Apps Script | No errors in logs | Execution log |
 
-### 12.4 Troubleshooting
+### 13.4 Troubleshooting
 
 | Symptom | Likely Cause | Solution |
 |---------|--------------|----------|
@@ -899,6 +832,7 @@ All features 1-16 are now **IMPLEMENTED**. See Section 1.2.
 | Wrong category | Pattern missing | Add to SL_Patterns |
 | Budget wrong | Formula broken | Check SL_Budget formulas |
 | Income not saving | Sheet missing | Run command to auto-create |
+| Expense API empty | No transactions | Check ShadowLedger tab |
 
 ---
 
@@ -931,7 +865,7 @@ All features 1-16 are now **IMPLEMENTED**. See Section 1.2.
   - Tab: SL_Investment_Log
 
 **Google Apps Script:**
-- `ShadowLedger_Code.gs` (v2.2.0)
+- `ShadowLedger_Code.gs` (v2.3.0)
 
 **GitHub Repository:**
 - `index.js` (Discord bot)
@@ -941,23 +875,52 @@ All features 1-16 are now **IMPLEMENTED**. See Section 1.2.
 - Worker code (in dashboard)
 
 **Documentation:**
-- `BLUEPRINT_ShadowLedger_v2_2_0.md` ← This file
-- `ShadowLedger_Cloudflare_Migration_Guide_v4.md` (setup guide)
+- `BLUEPRINT_ShadowLedger_v2_3_0.md` ← This file
 
-### Historical Files (Safe to Delete)
+### Safe to Delete
 
 | File | Reason |
 |------|--------|
-| `ShadowLedger_Blueprint.md` | Duplicate of v2.0.0 Blueprint |
-| `ShadowLedger_Setup.md` | Duplicate of Migration Guide |
-| `BLUEPRINT_ShadowLedger_v2_0_0.md` | Superseded by v2.2.0 |
-| `ShadowLedger_Blueprint_changelog_20251228_1830.md` | ADRs absorbed |
-| `ShadowLedger_Blueprint_changelog_20251228_1945.md` | ADRs absorbed |
+| `BLUEPRINT_ShadowLedger_v2_2_0.md` | Superseded by v2.3.0 |
+| `ShadowLedger_Blueprint.md` | Duplicate of earlier version |
+| `ShadowLedger_Setup.md` | Absorbed into Migration Guide |
+| `ShadowLedger_Blueprint_changelog_*.md` | ADRs absorbed |
+| `Dashboard_ShadowLedger_changelog_20260111_2200.md` | Absorbed into this Blueprint |
 
 ---
 
-**END OF UNIFIED BLUEPRINT v2.2.0**
+## APPENDIX C: VERSION HISTORY
 
-*Last Updated: 2025-12-28 22:45:00 UTC+2*  
-*Status: Production (Full MVP + Income/Investment)*  
+### v2.3.0 (2026-01-11)
+- **Enhanced Expense API**: `getExpenseBreakdown()` now returns transaction details per category
+- **New response fields**: `transaction_count`, `transactions_recent[]`, `transactions_top[]`, `insights{}`
+- **Dashboard support**: Enables hover tooltips with transaction lists
+- **No Discord command changes**
+
+### v2.2.0 (2025-12-28)
+- Added `!invest` command for investment transfers
+- Added `!invest status` for monthly summary
+- Created SL_Investment_Log sheet
+- Supports 5 destinations
+
+### v2.1.0 (2025-12-28)
+- Added `!income` command for salary/youtube/other
+- Added `!ta` command for Time Account hours
+- Added `!income status` for completion check
+- Added automated monthly reminders
+- Created SL_Income_Log sheet
+
+### v2.0.0 (2025-12-17)
+- Migrated from Pipedream to Cloudflare + Render.com
+- Added Gemini AI parsing
+- Multi-transaction support
+- Extended spender aliases
+- Enhanced date parsing
+
+---
+
+**END OF UNIFIED BLUEPRINT v2.3.0**
+
+*Last Updated: 2026-01-11 23:30:00 UTC+2*  
+*Status: Production (Full MVP + Income/Investment + Enhanced API)*  
 *Next Review: After implementing first post-MVP feature*

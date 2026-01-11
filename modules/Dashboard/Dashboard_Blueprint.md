@@ -1,9 +1,13 @@
-# Dashboard Blueprint v3.1.0
----
-version: 3.1.0
-lastUpdated: 2025-12-28 23:55:00
+# Dashboard Blueprint v3.2.0
+
+```yaml
+version: v3.2.0
+lastUpdated: 2026-01-11 23:35:00 UTC+2
 module: Dashboard
 status: Production
+parent_system: Aaron Family Financial Model v6.1
+```
+
 ---
 
 ## Overview
@@ -74,7 +78,7 @@ A fully online, free dashboard that visualizes household cash flows as an intera
 - ✅ **Expense API Endpoint** - `?action=expenses&month=YYYY-MM`
 - ✅ **Bug Fix: Total Outflow** - Excludes `mortgage_interest` and `mortgage_principal` (already in `mortgage_payment`)
 
-### v3.1 Features (Current - Dec 2024)
+### v3.1 Features (Dec 2024)
 - ✅ **Loading Overlay** - Semi-transparent overlay on Sankey during render
 - ✅ **Refresh Button Feedback** - Spinner animation while data loads
 - ✅ **Expense Loading Indicator** - "Loading expenses..." in status bar during prefetch
@@ -82,6 +86,17 @@ A fully online, free dashboard that visualizes household cash flows as an intera
 - ✅ **Expanded Expense Sankey** - Individual category nodes with distinct colors
 - ✅ **Category Color Scheme** - 17 distinct purple-gradient colors for categories
 - ✅ **Min Amount Threshold** - €10 minimum; smaller categories grouped as "Other Expenses"
+
+### v3.2 Features (Current - Jan 2026)
+- ✅ **Category Emojis** - Visual emoji mapping for all 17 categories
+- ✅ **Expense Hover Tooltips** - Transaction details on category hover
+- ✅ **Recent Transactions Section** - Shows last 10 transactions by date
+- ✅ **Top Transactions Section** - Shows top 10 transactions by amount
+- ✅ **Category Insights** - Average amount, largest transaction info
+- ✅ **German Number Formatting** - Thousand separators for percentages (de-DE locale)
+- ✅ **Tooltip Positioning Fix** - Uses `clientX/clientY` with boundary detection
+- ✅ **API URL Cleanup** - Strips query params from stored URL on init
+- ✅ **Cache Validation** - Validates cached expense data structure before use
 
 ---
 
@@ -95,9 +110,9 @@ Dashboard is **integrated into the ShadowLedger Apps Script project** rather tha
 ShadowLedger Project (Apps Script)
 ├── Code.gs          # Main routing + ShadowLedger functions
 │   └── doGet(e)     # Routes based on ?action= parameter
-├── Dashboard_Code.gs # Dashboard data extraction
-│   └── getDashboardData(e)
-└── [Other SL files]
+│   └── getExpenseBreakdown(month)  # Enhanced with transaction details
+├── Dashboard data extraction embedded in Code.gs
+└── [Other SL functions]
 ```
 
 ### API Routing
@@ -105,7 +120,7 @@ ShadowLedger Project (Apps Script)
 | Endpoint | Method | Returns |
 |----------|--------|---------|
 | `?action=dashboard` | GET | Full financial data for Sankey (204 months) |
-| `?action=expenses&month=YYYY-MM` | GET | Category expense breakdown with budgets |
+| `?action=expenses&month=YYYY-MM` | GET | Category expense breakdown with transactions |
 | `?action=test` | GET | Health check + endpoint list |
 | (POST body) | POST | ShadowLedger Discord webhook (unchanged) |
 
@@ -138,352 +153,49 @@ ShadowLedger Project (Apps Script)
 | Time Account | CC-CD | H hours, W hours |
 | Net Worth | CE-CJ | investment, house, mortgage, debt, TA, total |
 
-### API Response Format (Dashboard)
-
-```json
-{
-  "success": true,
-  "count": 204,
-  "timestamp": "2025-12-28T14:30:00.000Z",
-  "data": [{
-    "month": 1,
-    "year": 2026,
-    "date": "01/2026",
-    "income_from": "12/2025",
-    "month_type": "LEAN",
-    "is_bonus_month": false,
-    "is_rsu_month": false,
-    "is_sondertilgung_month": false,
-    "is_post_mortgage": false,
-    "is_debt_attack_phase": true,
-    
-    "gross": {
-      "h_salary": 6666.67,
-      "w_salary": 6500.00,
-      "h_bonus": 0,
-      "w_bonus": 0,
-      "yt": 1000.00
-    },
-    
-    "deductions": {
-      "h_ta": 200,
-      "w_ta": 200,
-      "h_ownsap": 666.67,
-      "w_ownsap": 650.00,
-      "h_bonus_ta": 0,
-      "w_bonus_ta": 0,
-      "h_tax": 2400,
-      "w_tax": 2340,
-      "yt_tax_reserve": 443
-    },
-    
-    "inflows": {
-      "h_salary_net": 3400.00,
-      "w_salary_net": 3310.00,
-      "h_rsu_net": 0,
-      "w_rsu_net": 0,
-      "yt_net": 557.00,
-      "ownsap_to_cmp": 1200.00,
-      "other_fam_net": 0
-    },
-    
-    "outflows": {
-      "mortgage_payment": 2281.00,
-      "mortgage_interest": 1287.00,
-      "mortgage_principal": 994.00,
-      "sondertilgung": 0,
-      "high_apr_payment": 600.00,
-      "low_apr_payment": 0,
-      "fixed_debt_payment": 1362.00,
-      "sap_loan_payment": 583.00,
-      "expenses": 3840.00,
-      "inv_ownsap": 0,
-      "inv_excess": 0,
-      "cash_add": 0
-    },
-    
-    "debt_details": {
-      "tf": { "payment": 300, "balance": 8900 },
-      "klarna": { "payment": 200, "balance": 1800 },
-      "nordea": { "payment": 100, "balance": 1900 },
-      "db": { "payment": 0, "balance": 2000 },
-      "aktia": { "payment": 0, "balance": 440 },
-      "scalable": { "payment": 0, "balance": 0 },
-      "ak": { "payment": 0, "balance": 0 },
-      "revolut": { "payment": 650, "balance": 0 },
-      "c3": { "payment": 290, "balance": 0 },
-      "student": { "payment": 200, "balance": 0 },
-      "ikea": { "payment": 132, "balance": 0 },
-      "n26": { "payment": 90, "balance": 0 },
-      "sap": { 
-        "payment": 583, 
-        "balance": 14000,
-        "h_balance": 7000,
-        "w_balance": 7000
-      }
-    },
-    
-    "investment_details": {
-      "begin": 12000,
-      "ownsap_contrib": 0,
-      "excess_contrib": 0,
-      "growth": 85,
-      "end": 12085
-    },
-    
-    "mortgage_details": {
-      "begin": 396554,
-      "interest_rate": 3.89,
-      "months_remaining": 90,
-      "total_paid": 0
-    },
-    
-    "balances": {
-      "cmp": 0,
-      "mortgage": 395560,
-      "high_apr_debt": 15040,
-      "low_apr_debt": 0,
-      "fixed_debt": 14000,
-      "investment": 12085,
-      "cashpile": 0,
-      "net_worth": 124786
-    },
-    
-    "net_worth_breakdown": {
-      "investment": 12085,
-      "house": 529092,
-      "mortgage": -395560,
-      "other_debt": -49888,
-      "time_account": 29057
-    },
-    
-    "cmp_details": {
-      "carry": 0,
-      "inflow": 8467,
-      "outflow": 8467,
-      "end": 0
-    }
-  }]
-}
-```
-
-### Expense API Response Format
-
-```json
-{
-  "success": true,
-  "month": "2026-01",
-  "month_name": "January 2026",
-  "categories": [
-    {
-      "name": "Groceries + Food",
-      "spent": 850.00,
-      "budget": 900,
-      "percent": 94,
-      "status": "🟠"
-    }
-  ],
-  "summary": {
-    "total_spent": 3500.00,
-    "total_budget": 4110,
-    "total_percent": 85,
-    "transaction_count": 47,
-    "budget_available": true
-  }
-}
-```
-
----
-
-## UI Components
-
-### 1. Controls Bar
-
-```
-┌───────────────────────────────────────────────────────────────────────────────┐
-│ View: [Simple|Detailed]  Expenses: [Collapsed|Expanded]                       │
-│ Year: [2026 ▼]  From: [Jan ▼]  To: [Mar ▼]                       [⟳ Refresh] │
-└───────────────────────────────────────────────────────────────────────────────┘
-```
-
-### 2. CMP Flow Section (Single-Month Only)
-
-Shows when `monthFrom === monthTo`:
-- Carry from Previous Month
-- Current Month Income
-- Current Month Outflows  
-- Flow to Next Month
-
-### 3. Stat Cards
-
-| Card | Label | Hover Shows |
-|------|-------|-------------|
-| 1 | Total Inflow | H Salary, W Salary, RSU, YouTube, OWNSAP, Other |
-| 2 | Total Outflow | Mortgage, Debts, Expenses, Investments |
-| 3 | CMP Balance | Carry, Inflow, Outflow, Net Change |
-| 4 | Current Investment Value | Start, Contributions, Growth |
-| 5 | Mortgage Left to Pay | Original, Paid, Rate, Months |
-| 6 | Net Worth | Investment + House - Mortgage - Debts + TA |
-
-### 4. Sankey Diagram
-
-**Simple View:**
-```
-Income Sources ──▶ CMP ──▶ Outflows
-```
-
-**Detailed View:**
-```
-Gross Income ──▶ Deductions ──▶ Net Income ──▶ CMP ──▶ Outflows
-```
-
-**Expense View: Collapsed (default)**
-```
-CMP ──▶ [Expenses €3,840]
-```
-
-**Expense View: Expanded**
-```
-CMP ──┬▶ [Childcare €1,200]
-      ├▶ [Groceries + Food €850]
-      ├▶ [Utilities €400]
-      ├▶ ... (17 categories)
-      └▶ [Other Expenses €45]  (< €10 categories combined)
-```
-
-### 5. Interactive Elements
-
-| Element | Hover | Click |
-|---------|-------|-------|
-| Expenses Node | All 17 categories with actual/budget | Modal with progress bars |
-| Category Node (expanded) | Spent/Budget/Status for that category | Modal with full breakdown |
-| High-APR Debt Node | 5 debts with payment + balance | Modal with full details |
-| Low-APR Debt Node | Scalable + AK with payment + balance | Modal |
-| Fixed Loans Node | 5 loans with payment/mo | Modal with balances |
-| SAP Loan Node | Payment, balance, 0% rate | Modal with H/W split |
-| Mortgage Node | Payment, principal, interest | — |
-| Investment Node | Begin, OWNSAP, Excess, Growth, End | — |
-
-### 6. Loading States
-
-| State | Visual Feedback |
-|-------|-----------------|
-| Data refresh | Refresh button shows spinner, disabled |
-| Sankey render | Semi-transparent overlay with spinner |
-| Expense prefetch | "Loading expenses..." in status bar |
-
 ---
 
 ## Technical Implementation
 
-### Column Mapping (Dashboard_Code.gs)
+### Category Emoji Mapping
 
 ```javascript
-const COL = {
-  // Date Info (A-E)
-  month: 1, year: 2, date: 3, income_from: 4, month_type: 5,
-  
-  // Husband Income (F-M)
-  h_gross_salary: 6, h_ta_ded: 7, h_ownsap_ded: 8, h_gross_bonus: 9,
-  h_bonus_ta: 10, h_taxable: 11, h_net_salary: 12, h_rsu_net: 13,
-  
-  // Wife Income (N-U)
-  w_gross_salary: 14, w_ta_ded: 15, w_ownsap_ded: 16, w_gross_bonus: 17,
-  w_bonus_ta: 18, w_taxable: 19, w_net_salary: 20, w_rsu_net: 21,
-  
-  // OWNSAP (V-X)
-  h_ownsap_val: 22, w_ownsap_val: 23, ownsap_total: 24,
-  
-  // SAP Loan Detail (Y-AF)
-  h_sap_taxed_adv: 25, h_sap_loan_pmt: 26, h_sap_loan_bal: 27,
-  w_sap_taxed_adv: 28, w_sap_loan_pmt: 29, w_sap_loan_bal: 30,
-  sap_loan_pmt: 31, sap_loan_bal: 32,
-  
-  // YouTube (AG-AI)
-  yt_gross: 33, yt_tax_res: 34, yt_net: 35,
-  
-  // Other Income (AJ)
-  other_fam_net_inc: 36,
-  
-  // CMP (AK-AN)
-  cmp_carry: 37, cmp_inflow: 38, cmp_available: 39, cmp_end: 40,
-  
-  // Mortgage (AO-AT)
-  mort_begin: 41, mort_pmt: 42, mort_int: 43, mort_princ: 44,
-  sondertilgung: 45, mort_end: 46,
-  
-  // High-APR Debt (AU-BE)
-  d_tf_pmt: 47, d_tf_bal: 48, d_klarna_pmt: 49, d_klarna_bal: 50,
-  d_nordea_pmt: 51, d_nordea_bal: 52, d_db_pmt: 53, d_db_bal: 54,
-  d_aktia_pmt: 55, d_aktia_bal: 56, d_highapr_total: 57,
-  
-  // Low-APR Debt (BF-BI)
-  d_scalable_pmt: 58, d_scalable_bal: 59, d_ak_pmt: 60, d_ak_bal: 61,
-  
-  // Fixed Loans (BJ-BO)
-  d_revolut_pmt: 62, d_c3_pmt: 63, d_student_pmt: 64,
-  d_ikea_pmt: 65, d_n26_pmt: 66, d_fixed_total: 67,
-  
-  // Expenses (BP-BQ)
-  exp_budget: 68, exp_alloc: 69,
-  
-  // Investment (BR-BV)
-  inv_begin: 70, inv_ownsap: 71, inv_excess: 72, inv_growth: 73, inv_end: 74,
-  
-  // Cashpile (BW-BY)
-  cash_begin: 75, cash_add: 76, cash_end: 77,
-  
-  // Tax Reserve (BZ-CB)
-  taxres_beg: 78, taxres_add: 79, taxres_end: 80,
-  
-  // Time Account (CC-CD)
-  h_ta_hrs: 81, w_ta_hrs: 82,
-  
-  // Net Worth (CE-CJ)
-  nw_invest: 83, nw_house: 84, nw_mortgage: 85,
-  nw_debt: 86, nw_ta: 87, nw_total: 88
+const categoryEmojis = {
+  'Childcare': '👶',
+  'Family Support': '👨‍👩‍👦',
+  'Groceries + Food': '🛒',
+  'Utilities': '💡',
+  'Car': '🚗',
+  'Shopping': '🛍️',
+  'Travel & Leisure': '✈️',
+  'Insurance': '🛡️',
+  'Eat Out & Food delivery': '🍽️',
+  'Gifts': '🎁',
+  'Entertainment': '🎬',
+  'Health & beauty': '💊',
+  'Home improvement': '🏠',
+  'Business & Subscription': '💼',
+  'Donation': '❤️',
+  'Special IO': '⭐',
+  'Buffer': '🔄'
 };
-```
 
-### API Routing Logic (ShadowLedger_Code.gs)
-
-```javascript
-function doGet(e) {
-  const action = e.parameter ? e.parameter.action : null;
-  
-  if (action === 'dashboard') {
-    return getDashboardData();
-  }
-  
-  if (action === 'expenses') {
-    const month = e.parameter.month; // e.g., "2025-12"
-    if (!month) {
-      return error('Missing required parameter: month (format: YYYY-MM)');
-    }
-    return getExpenseBreakdown(month);
-  }
-  
-  if (action === 'test') {
-    return healthCheck();
-  }
-  
-  return defaultResponse();
+function getCategoryEmoji(name) {
+  return categoryEmojis[name] || '📦';
 }
 ```
 
-### Category Colors (index.html)
-
-17 expense categories use a purple gradient for visual consistency:
+### Category Color Scheme
 
 ```javascript
 const categoryColors = {
   'Childcare': '#7c3aed',
   'Family Support': '#8b5cf6',
   'Groceries + Food': '#a78bfa',
-  'Utilities': '#6366f1',
-  'Car': '#818cf8',
-  'Shopping': '#c4b5fd',
-  'Travel & Leisure': '#4f46e5',
+  'Utilities': '#c4b5fd',
+  'Car': '#ddd6fe',
+  'Shopping': '#5b21b6',
+  'Travel & Leisure': '#4c1d95',
   'Insurance': '#6d28d9',
   'Eat Out & Food delivery': '#a855f7',
   'Gifts': '#d946ef',
@@ -495,6 +207,150 @@ const categoryColors = {
   'Special IO': '#581c87',
   'Buffer': '#4c1d95'
 };
+```
+
+### German Percentage Formatting
+
+```javascript
+function formatPercentGerman(percent) {
+  if (percent === null || percent === undefined) return 'N/A';
+  return percent.toLocaleString('de-DE') + '%';
+}
+// Example: 1140 → "1.140%"
+```
+
+### Expense Tooltip Component
+
+```javascript
+function showExpenseTooltip(event, idx) {
+  const cat = currentExpenseData.categories[idx];
+  if (!cat) return;
+  
+  const tooltip = document.getElementById('expenseTooltip');
+  
+  let html = `
+    <div class="expense-tooltip-header">
+      <span class="expense-category-emoji">${getCategoryEmoji(cat.name)}</span>
+      <strong>${cat.name}</strong>
+    </div>
+    <div class="expense-tooltip-summary">
+      €${cat.spent.toFixed(2)} / €${cat.budget} (${formatPercentGerman(cat.percent)})
+    </div>
+  `;
+  
+  // Recent transactions section
+  if (cat.transactions_recent && cat.transactions_recent.length > 0) {
+    html += `<div class="expense-tooltip-section">
+      <div class="expense-tooltip-section-title">📅 Recent</div>`;
+    cat.transactions_recent.slice(0, 5).forEach(t => {
+      html += `<div class="expense-tooltip-txn">
+        <span>${t.date}</span>
+        <span>${t.merchant}</span>
+        <span>€${t.amount.toFixed(2)}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  
+  // Top transactions section
+  if (cat.transactions_top && cat.transactions_top.length > 0) {
+    html += `<div class="expense-tooltip-section">
+      <div class="expense-tooltip-section-title">💰 Largest</div>`;
+    cat.transactions_top.slice(0, 3).forEach(t => {
+      html += `<div class="expense-tooltip-txn">
+        <span>${t.date}</span>
+        <span>${t.merchant}</span>
+        <span>€${t.amount.toFixed(2)}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  
+  // Insights section
+  if (cat.insights) {
+    html += `<div class="expense-tooltip-section">
+      <div class="expense-tooltip-section-title">💡 Insights</div>
+      <div class="expense-tooltip-insight">Avg: €${cat.insights.avg_amount.toFixed(2)}</div>
+      <div class="expense-tooltip-insight">${cat.transaction_count} transactions</div>
+    </div>`;
+  }
+  
+  tooltip.innerHTML = html;
+  tooltip.classList.add('visible');
+  moveExpenseTooltip(event);
+}
+```
+
+### Tooltip Positioning (Fixed)
+
+```javascript
+function moveExpenseTooltip(event) {
+  const tooltip = document.getElementById('expenseTooltip');
+  const padding = 15;
+  
+  let x = event.clientX + padding;
+  let y = event.clientY + padding;
+  
+  // Boundary detection
+  const rect = tooltip.getBoundingClientRect();
+  if (x + rect.width > window.innerWidth) {
+    x = event.clientX - rect.width - padding;
+  }
+  if (y + rect.height > window.innerHeight) {
+    y = event.clientY - rect.height - padding;
+  }
+  
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+```
+
+### API URL Cleanup Pattern
+
+```javascript
+// On init, strip any existing query params
+function init() {
+  let storedUrl = localStorage.getItem('sankey_api_url');
+  if (storedUrl) {
+    // Clean up URL - remove any query params
+    API_URL = storedUrl.split('?')[0];
+    localStorage.setItem('sankey_api_url', API_URL);
+  }
+}
+
+// Same cleanup in saveApiUrl, refreshData, fetchExpenseData
+function saveApiUrl() {
+  const input = document.getElementById('apiUrlInput');
+  API_URL = input.value.trim().split('?')[0];  // Strip params
+  localStorage.setItem('sankey_api_url', API_URL);
+}
+```
+
+### Cache Validation
+
+```javascript
+async function fetchExpenseData(month) {
+  // Check cache first
+  if (expenseCache[month]) {
+    const cached = expenseCache[month];
+    // Validate structure
+    if (cached.categories && cached.summary) {
+      return cached;
+    }
+  }
+  
+  // Fetch from API
+  const url = API_URL.split('?')[0] + `?action=expenses&month=${month}`;
+  const response = await fetch(url);
+  const data = await response.json();
+  
+  if (data.success && data.categories && data.summary) {
+    expenseCache[month] = data;
+    return data;
+  }
+  
+  return null;
+}
 ```
 
 ### Expense Expanded View Logic
@@ -560,6 +416,7 @@ let currentExpenseData = null;
 
 async function prefetchExpenseData() {
   showExpenseLoadingIndicator(true);
+  expenseCache = {};  // Clear on refresh
   
   const months = [];
   for (let m = monthFrom; m <= monthTo; m++) {
@@ -577,7 +434,7 @@ async function prefetchExpenseData() {
 }
 ```
 
-### Total Outflow Calculation (Bug Fix)
+### Total Outflow Calculation
 
 ```javascript
 // CORRECT: Excludes mortgage_interest and mortgage_principal
@@ -655,16 +512,93 @@ const colors = {
 
 ---
 
+## CSS Classes (New in v3.2)
+
+```css
+/* Expense category in table */
+.expense-category {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.expense-category-emoji {
+  font-size: 18px;
+  width: 24px;
+  text-align: center;
+}
+
+/* Expense hover tooltip */
+.expense-tooltip {
+  position: fixed;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  width: 340px;
+  max-width: 400px;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.expense-tooltip.visible {
+  opacity: 1;
+}
+
+.expense-tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.expense-tooltip-summary {
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.expense-tooltip-section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.expense-tooltip-section-title {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.expense-tooltip-txn {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.expense-tooltip-insight {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+```
+
+---
+
 ## File Structure
 
 ```
 GitHub Pages:
-├── index.html              # Dashboard v3.1 UI (production)
+├── index.html              # Dashboard v3.2 UI (production)
 
 Google Sheet (ShadowLedger Project):
-├── Code.gs                 # Main routing + ShadowLedger functions
-├── Dashboard_Code.gs       # getDashboardData() with 88-col mapping
-└── [Other ShadowLedger files]
+├── Code.gs                 # Main routing + all functions
+│   └── doGet()             # API routing
+│   └── getDashboardData()  # 88-col mapping
+│   └── getExpenseBreakdown() # Enhanced with transactions
+└── [ShadowLedger functions]
 
 Sheet Tabs:
 ├── Monthly_Model_v4        # Primary data source (88 columns)
@@ -705,16 +639,17 @@ Sheet Tabs:
 | 2.0 | Dec 2024 | Multi-month, Simple/Detailed views, Rich hover insights |
 | 3.0 | Dec 2024 | Integrated with ShadowLedger, 88-col v6.1 support, Expense/Debt modals, Pre-fetch, Bug fixes |
 | 3.1 | Dec 2024 | Loading states, Expense view toggle (Collapsed/Expanded), Category colors, €10 min threshold |
+| 3.2 | Jan 2026 | Category emojis, Expense hover tooltips with transactions, German number formatting, Tooltip positioning fix, API URL cleanup, Cache validation |
 
 ---
 
 ## Future Features (Roadmap)
 
-- **Expense Categories Visualization**: Pie/bar chart of €4,110 monthly budget
 - **Scenario Modeling**: What-if analysis for different financial paths
 - **Mobile App**: React Native wrapper for on-the-go access
 - **Historical Comparison**: Compare months/years side-by-side
 - **Export to PDF**: Generate monthly financial reports
+- **Pie/Bar Charts**: Alternative visualizations for expenses
 
 ---
 
@@ -724,13 +659,25 @@ Sheet Tabs:
 |-------|----------|
 | "Failed to fetch" | Check Apps Script is deployed, URL is correct, includes `?action=dashboard` |
 | Data outdated | Click Refresh, check Google Sheet has latest |
-| Wrong columns | Update COL mapping in Dashboard_Code.gs, redeploy Apps Script |
+| Wrong columns | Update COL mapping in Code.gs, redeploy Apps Script |
 | CORS error | Shouldn't happen with Apps Script; try incognito |
 | Reset API URL | Console: `localStorage.removeItem('sankey_api_url')` |
 | Expense data not loading | Check SL_Budget has multi-month schema with Month_Key column |
 | Double-counted outflow | Ensure using corrected calculation (excludes mort_int/mort_princ) |
 | Expanded view empty | Ensure expense prefetch completed; check API returns categories |
+| Tooltip far from cursor | Fixed in v3.2 - uses clientX/clientY |
+| Cached stale data | Fixed in v3.2 - cache cleared on init/refresh |
+| API URL has double ?action= | Fixed in v3.2 - strips query params on save |
 
 ---
 
-*Blueprint v3.1.0 | Last Updated: 2025-12-28 23:55:00 (UTC+2)*
+## Safe to Delete
+
+| File | Reason |
+|------|--------|
+| `Dashboard_Blueprint_v3_1.md` | Superseded by v3.2.0 |
+| `Dashboard_ShadowLedger_changelog_20260111_2200.md` | Absorbed into this Blueprint |
+
+---
+
+*Blueprint v3.2.0 | Last Updated: 2026-01-11 23:35:00 (UTC+2)*
