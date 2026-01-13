@@ -1,7 +1,11 @@
 /**
  * ShadowLedger - Google Apps Script
- * Version: 2.2.0
- * Date: 2025-12-28
+ * Version: 2.3.1
+ * Date: 2026-01-11
+ * 
+ * v2.3.0 Changes:
+ * - Fixed UTF-8 encoding for all emojis
+ * - All Discord messages now display properly
  * 
  * Features v2.2 (Investment Tracking):
  * 14. !invest command for logging transfers to investment accounts
@@ -35,7 +39,7 @@ const CONFIG = {
     PATTERNS: 'SL_Patterns',
     CONFIG: 'SL_Config',
     INCOME_LOG: 'SL_Income_Log',
-    INVESTMENT_LOG: 'SL_Investment_Log'  // NEW v2.2
+    INVESTMENT_LOG: 'SL_Investment_Log'
   },
   TIMEZONE: 'Europe/Berlin',
   CATEGORIES: [
@@ -57,21 +61,47 @@ const CONFIG = {
     'Special IO',
     'Buffer'
   ],
-  // Income types (v2.1)
   INCOME_TYPES: {
     'salary': { column: 'net_salary', requiresSpender: true, label: 'Net Salary' },
     'youtube': { column: 'yt_gross', requiresSpender: false, label: 'YouTube Gross' },
     'other': { column: 'other_fam_net_inc', requiresSpender: false, label: 'Other Income' }
   },
   REMINDER_DAYS: [1, 6, 11, 16, 21, 26],
-  // NEW v2.2: Investment destinations
   INVESTMENT_DESTINATIONS: ['scalable', 'revolut', 'comdirect', 'trade_republic', 'other']
 };
 
-// Feature #1: Extended spender aliases
+// Extended spender aliases
 const SPENDER_ALIASES = {
   'h': 'H', 'husband': 'H', 'nha': 'H', 'anh': 'H', 'aaron': 'H',
   'w': 'W', 'wife': 'W', 'trang': 'W', 'chang': 'W', 'em': 'W'
+};
+
+// ============ EMOJI CONSTANTS (UTF-8 Safe) ============
+const EMOJI = {
+  CHECK: '✅',
+  CROSS: '❌',
+  CLIPBOARD: '📋',
+  MONEY: '💰',
+  CHART: '📊',
+  EURO: '€',
+  ARROW: '→',
+  LINE: '─',
+  TIMER: '⏱️',
+  CALENDAR: '📅',
+  MEMO: '📝',
+  BULLET: '•',
+  GREEN: '🟢',
+  RED: '🔴',
+  ORANGE: '🟠',
+  YELLOW: '🟡',
+  DATE: '📆',
+  PACKAGE: '📦',
+  PERSON: '👤',
+  WARNING: '⚠️',
+  SPARKLE: '✨',
+  PARTY: '🎉',
+  MINUS: '➖',
+  TRENDING: '📈'
 };
 
 // ============ MAIN ENTRY POINT ============
@@ -94,12 +124,10 @@ function doPost(e) {
 function doGet(e) {
   const action = e.parameter ? e.parameter.action : null;
   
-  // Route: Dashboard financial data
   if (action === 'dashboard') {
     return getDashboardData();
   }
   
-  // Route: Expense breakdown by month
   if (action === 'expenses') {
     const month = e.parameter.month;
     if (!month) {
@@ -111,11 +139,10 @@ function doGet(e) {
     return getExpenseBreakdown(month);
   }
   
-  // Route: Health check
   if (action === 'test') {
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
-      message: 'ShadowLedger API v2.2.0 is running',
+      message: 'ShadowLedger API v2.3.1 is running',
       timestamp: new Date().toISOString(),
       endpoints: [
         '?action=dashboard - Financial data for Sankey',
@@ -126,10 +153,9 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
   
-  // Default response
   return ContentService.createTextOutput(JSON.stringify({
     success: true,
-    message: 'ShadowLedger API v2.2.0',
+    message: 'ShadowLedger API v2.3.1',
     hint: 'Use ?action=dashboard, ?action=expenses&month=YYYY-MM, or ?action=test'
   })).setMimeType(ContentService.MimeType.JSON);
 }
@@ -140,12 +166,10 @@ function processDiscordMessage(data) {
   const message = data.content.trim();
   const username = data.username || 'unknown';
   
-  // Commands
   if (message.startsWith('!')) {
     return handleCommand(message, username);
   }
   
-  // Feature #2: Multi-transaction support
   const lines = message.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
   if (lines.length === 1) {
@@ -155,7 +179,6 @@ function processDiscordMessage(data) {
   return logMultipleExpenses(lines, username);
 }
 
-// Feature #2: Multi-transaction handler
 function logMultipleExpenses(lines, username) {
   const results = [];
   let successCount = 0;
@@ -169,18 +192,18 @@ function logMultipleExpenses(lines, username) {
       if (result.success) {
         successCount++;
         totalAmount += result.amount;
-        results.push(`âœ¦ â‚¬${result.amount.toFixed(2)} â†’ ${result.category}`);
+        results.push(`${EMOJI.CHECK} ${EMOJI.EURO}${result.amount.toFixed(2)} ${EMOJI.ARROW} ${result.category}`);
         if (!categorySpending[result.category]) {
           categorySpending[result.category] = 0;
         }
         categorySpending[result.category] += result.amount;
       } else {
         failCount++;
-        results.push(`âŒ "${line.substring(0, 20)}..." - ${result.error}`);
+        results.push(`${EMOJI.CROSS} "${line.substring(0, 20)}..." - ${result.error}`);
       }
     } catch (e) {
       failCount++;
-      results.push(`âŒ "${line.substring(0, 20)}..." - Error`);
+      results.push(`${EMOJI.CROSS} "${line.substring(0, 20)}..." - Error`);
     }
   }
   
@@ -188,17 +211,17 @@ function logMultipleExpenses(lines, username) {
   let budgetLines = [];
   for (const cat of Object.keys(categorySpending)) {
     const status = calculateBudgetStatus(cat, monthKey);
-    budgetLines.push(`${status.status} ${cat}: â‚¬${status.spent.toFixed(0)}/â‚¬${status.budget} (${(status.percent * 100).toFixed(0)}%)`);
+    budgetLines.push(`${status.status} ${cat}: ${EMOJI.EURO}${status.spent.toFixed(0)}/${EMOJI.EURO}${status.budget} (${(status.percent * 100).toFixed(0)}%)`);
   }
   
-  let response = `ðŸ“‹ **BATCH LOGGED** (${successCount}/${lines.length})
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  let response = `${EMOJI.CLIPBOARD} **BATCH LOGGED** (${successCount}/${lines.length})
+${EMOJI.LINE.repeat(25)}
 ${results.join('\n')}
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-**Total:** â‚¬${totalAmount.toFixed(2)}`;
+${EMOJI.LINE.repeat(25)}
+**Total:** ${EMOJI.EURO}${totalAmount.toFixed(2)}`;
 
   if (budgetLines.length > 0) {
-    response += `\n\nðŸ“Š **Budget Status:**\n${budgetLines.join('\n')}`;
+    response += `\n\n${EMOJI.CHART} **Budget Status:**\n${budgetLines.join('\n')}`;
   }
   
   sendDiscordMessage(response);
@@ -210,26 +233,26 @@ function handleCommand(message, username) {
   const cmd = parts[0];
   
   if (cmd === '!help') {
-    const helpText = `**ShadowLedger v2.2 Commands**
+    const helpText = `**ShadowLedger v2.3 Commands**
 
-ðŸ“ **Expense Logging (flexible format):**
+${EMOJI.MEMO} **Expense Logging (flexible format):**
 Any order works! Examples:
-â€¢ 45 rewe
-â€¢ rewe 45â‚¬ wife yesterday
-â€¢ 27 lidl 01.03 husband
+${EMOJI.BULLET} 45 rewe
+${EMOJI.BULLET} rewe 45€ wife yesterday
+${EMOJI.BULLET} 27 lidl 01.03 husband
 
-ðŸ“¦ **Multi-line batch:**
+${EMOJI.PACKAGE} **Multi-line batch:**
 Use Shift+Enter for line breaks
 
-ðŸ‘¤ **Spender names:**
+${EMOJI.PERSON} **Spender names:**
 H: h, husband, nha, anh, aaron
 W: w, wife, trang, chang, em
 
-ðŸ“† **Dates:**
+${EMOJI.DATE} **Dates:**
 yesterday, today, tomorrow
 06.03, 6/3, march 6
 
-ðŸ“‹ **Expense Commands:**
+${EMOJI.CLIPBOARD} **Expense Commands:**
 !status - Monthly budget table
 !budgetleft - Remaining budget
 !ytd - Year to date table
@@ -237,18 +260,18 @@ yesterday, today, tomorrow
 !week - This week's expenses
 !undo - Delete last transaction
 
-ðŸ’° **Income Commands:**
+${EMOJI.MONEY} **Income Commands:**
 !income 4200 salary h - Log H net salary
 !income 3800 salary w - Log W net salary
 !income 1200 youtube - Log YT gross
 !income 50 other payback - Log other income
 !income status - Check what's missing
 
-â±ï¸ **Time Account:**
+${EMOJI.TIMER} **Time Account:**
 !ta 45 h - Log H hours added
 !ta 38 w - Log W hours added
 
-ðŸ“ˆ **Investment Commands (NEW):**
+${EMOJI.TRENDING} **Investment Commands:**
 !invest 500 scalable - Log transfer
 !invest 1000 revolut ETF purchase
 !invest status - This month's transfers
@@ -285,7 +308,6 @@ yesterday, today, tomorrow
     return handleUndo(username);
   }
   
-  // Income commands (v2.1)
   if (cmd === '!income') {
     if (parts.length >= 2 && parts[1] === 'status') {
       return getIncomeStatus();
@@ -293,12 +315,10 @@ yesterday, today, tomorrow
     return handleIncomeCommand(message, username);
   }
   
-  // Time Account command (v2.1)
   if (cmd === '!ta') {
     return handleTACommand(message, username);
   }
   
-  // NEW v2.2: Investment commands
   if (cmd === '!invest') {
     if (parts.length >= 2 && parts[1] === 'status') {
       return getInvestmentStatus();
@@ -306,31 +326,30 @@ yesterday, today, tomorrow
     return handleInvestCommand(message, username);
   }
   
-  sendDiscordMessage('âŒ Unknown command. Type !help for available commands.');
+  sendDiscordMessage(`${EMOJI.CROSS} Unknown command. Type !help for available commands.`);
   return { success: false, error: 'Unknown command' };
 }
 
-// ============ NEW v2.2: INVESTMENT LOGGING ============
+// ============ INVESTMENT LOGGING ============
 
 function handleInvestCommand(message, username) {
   const parts = message.trim().split(/\s+/);
   
   if (parts.length < 3) {
-    sendDiscordMessage(`âŒ **Format:** !invest [amount] [destination] [notes]
+    sendDiscordMessage(`${EMOJI.CROSS} **Format:** !invest [amount] [destination] [notes]
 
 **Destinations:** scalable, revolut, comdirect, trade_republic, other
 **Examples:**
-â€¢ !invest 500 scalable
-â€¢ !invest 1000 revolut ETF purchase
-â€¢ !invest 2000 comdirect monthly DCA`);
+${EMOJI.BULLET} !invest 500 scalable
+${EMOJI.BULLET} !invest 1000 revolut ETF purchase
+${EMOJI.BULLET} !invest 2000 comdirect monthly DCA`);
     return { success: false, error: 'Invalid format' };
   }
   
-  // Extract amount
   let amount = null;
   let amountIndex = -1;
   for (let i = 1; i < parts.length; i++) {
-    const num = parseFloat(parts[i].replace('â‚¬', '').replace(',', '.'));
+    const num = parseFloat(parts[i].replace('€', '').replace(',', '.'));
     if (!isNaN(num) && num > 0) {
       amount = num;
       amountIndex = i;
@@ -339,16 +358,14 @@ function handleInvestCommand(message, username) {
   }
   
   if (!amount) {
-    sendDiscordMessage('âŒ Could not parse amount. Use: !invest 500 scalable');
+    sendDiscordMessage(`${EMOJI.CROSS} Could not parse amount. Use: !invest 500 scalable`);
     return { success: false, error: 'No amount found' };
   }
   
-  // Extract destination
   let destination = null;
   let destIndex = -1;
   for (let i = 1; i < parts.length; i++) {
     const part = parts[i].toLowerCase();
-    // Check exact match or partial match
     for (const dest of CONFIG.INVESTMENT_DESTINATIONS) {
       if (part === dest || part.startsWith(dest.substring(0, 4))) {
         destination = dest;
@@ -360,32 +377,29 @@ function handleInvestCommand(message, username) {
   }
   
   if (!destination) {
-    sendDiscordMessage(`âŒ Unknown destination. Use: scalable, revolut, comdirect, trade_republic, or other`);
+    sendDiscordMessage(`${EMOJI.CROSS} Unknown destination. Use: scalable, revolut, comdirect, trade_republic, or other`);
     return { success: false, error: 'Unknown destination' };
   }
   
-  // Extract notes (remaining words)
   const usedIndices = new Set([0, amountIndex, destIndex]);
   const notesParts = parts.filter((_, i) => !usedIndices.has(i));
   const notes = notesParts.join(' ');
   
-  // Current month (not previous like income)
   const now = new Date();
   const monthKey = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM');
   
   const result = logInvestmentEntry(amount, destination, notes, monthKey, username);
   
   if (result.success) {
-    // Get month total
     const monthTotal = getInvestmentMonthTotal(monthKey);
     
-    sendDiscordMessage(`âœ… **Investment Logged**
-â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
-ðŸ“ˆ â‚¬${amount.toFixed(2)} â†’ ${capitalizeFirst(destination)}
-ðŸ“… Month: ${monthKey}
-ðŸ“ ${notes || '(no notes)'}
-â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
-**${monthKey} Total Invested:** â‚¬${monthTotal.toFixed(2)}`);
+    sendDiscordMessage(`${EMOJI.CHECK} **Investment Logged**
+${EMOJI.LINE.repeat(25)}
+${EMOJI.TRENDING} ${EMOJI.EURO}${amount.toFixed(2)} ${EMOJI.ARROW} ${capitalizeFirst(destination)}
+${EMOJI.CALENDAR} Month: ${monthKey}
+${EMOJI.MEMO} ${notes || '(no notes)'}
+${EMOJI.LINE.repeat(25)}
+**${monthKey} Total Invested:** ${EMOJI.EURO}${monthTotal.toFixed(2)}`);
   }
   
   return result;
@@ -399,12 +413,11 @@ function logInvestmentEntry(amount, destination, notes, monthKey, inputter) {
     const dateStr = Utilities.formatDate(now, CONFIG.TIMEZONE, "yyyy-MM-dd");
     const entryId = `INV-${Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyyMMdd-HHmmss')}`;
     
-    // Always append (don't update like income - each transfer is unique)
     sheet.appendRow([entryId, dateStr, monthKey, amount, destination, notes, timestamp, inputter]);
     
     return { success: true };
   } catch (e) {
-    sendDiscordMessage('âŒ Error logging investment: ' + e.toString());
+    sendDiscordMessage(`${EMOJI.CROSS} Error logging investment: ` + e.toString());
     return { success: false, error: e.toString() };
   }
 }
@@ -416,7 +429,6 @@ function getInvestmentStatus(monthKeyOverride) {
   const sheet = getOrCreateInvestmentSheet();
   const data = sheet.getDataRange().getValues();
   
-  // Group by destination
   const byDestination = {};
   let totalAmount = 0;
   let transferCount = 0;
@@ -436,14 +448,13 @@ function getInvestmentStatus(monthKeyOverride) {
       totalAmount += amount;
       transferCount++;
       
-      // Format date for display
       const dateDisplay = typeof date === 'string' ? date.substring(5) : Utilities.formatDate(new Date(date), CONFIG.TIMEZONE, 'MM-dd');
       transfers.push({ date: dateDisplay, amount, destination, notes });
     }
   }
   
-  let response = `ðŸ“ˆ **Investment Status for ${monthKey}**
-â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+  let response = `${EMOJI.TRENDING} **Investment Status for ${monthKey}**
+${EMOJI.LINE.repeat(32)}
 
 `;
 
@@ -451,26 +462,24 @@ function getInvestmentStatus(monthKeyOverride) {
     response += `No investments logged this month yet.
 
 **Log a transfer:**
-â€¢ !invest 500 scalable
-â€¢ !invest 1000 revolut ETF purchase`;
+${EMOJI.BULLET} !invest 500 scalable
+${EMOJI.BULLET} !invest 1000 revolut ETF purchase`;
   } else {
-    // List by destination
     response += `**By Destination:**\n`;
     for (const [dest, amt] of Object.entries(byDestination).sort((a, b) => b[1] - a[1])) {
-      response += `â€¢ ${capitalizeFirst(dest)}: â‚¬${amt.toFixed(2)}\n`;
+      response += `${EMOJI.BULLET} ${capitalizeFirst(dest)}: ${EMOJI.EURO}${amt.toFixed(2)}\n`;
     }
     
     response += `\n**Recent Transfers:**\n`;
-    // Show last 5 transfers
     const recentTransfers = transfers.slice(-5).reverse();
     for (const t of recentTransfers) {
       const notesStr = t.notes ? ` - ${t.notes.substring(0, 20)}` : '';
-      response += `â€¢ ${t.date}: â‚¬${t.amount.toFixed(2)} â†’ ${capitalizeFirst(t.destination)}${notesStr}\n`;
+      response += `${EMOJI.BULLET} ${t.date}: ${EMOJI.EURO}${t.amount.toFixed(2)} ${EMOJI.ARROW} ${capitalizeFirst(t.destination)}${notesStr}\n`;
     }
     
     response += `
-â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
-**Total:** â‚¬${totalAmount.toFixed(2)} (${transferCount} transfers)`;
+${EMOJI.LINE.repeat(32)}
+**Total:** ${EMOJI.EURO}${totalAmount.toFixed(2)} (${transferCount} transfers)`;
   }
   
   sendDiscordMessage(response);
@@ -511,28 +520,27 @@ function capitalizeFirst(str) {
   return str.charAt(0).toUpperCase() + str.slice(1).replace('_', ' ');
 }
 
-// ============ INCOME LOGGING (v2.1) ============
+// ============ INCOME LOGGING ============
 
 function handleIncomeCommand(message, username) {
   const parts = message.trim().split(/\s+/);
   
   if (parts.length < 3) {
-    sendDiscordMessage(`âŒ **Format:** !income [amount] [type] [h/w] [description]
+    sendDiscordMessage(`${EMOJI.CROSS} **Format:** !income [amount] [type] [h/w] [description]
 
 **Types:** salary, youtube, other
 **Examples:**
-â€¢ !income 4200 salary h
-â€¢ !income 3800 salary w
-â€¢ !income 1200 youtube
-â€¢ !income 50 other payback cashout`);
+${EMOJI.BULLET} !income 4200 salary h
+${EMOJI.BULLET} !income 3800 salary w
+${EMOJI.BULLET} !income 1200 youtube
+${EMOJI.BULLET} !income 50 other payback cashout`);
     return { success: false, error: 'Invalid format' };
   }
   
-  // Extract amount
   let amount = null;
   let amountIndex = -1;
   for (let i = 1; i < parts.length; i++) {
-    const num = parseFloat(parts[i].replace('â‚¬', '').replace(',', '.'));
+    const num = parseFloat(parts[i].replace('€', '').replace(',', '.'));
     if (!isNaN(num) && num > 0) {
       amount = num;
       amountIndex = i;
@@ -541,11 +549,10 @@ function handleIncomeCommand(message, username) {
   }
   
   if (!amount) {
-    sendDiscordMessage('âŒ Could not parse amount. Use: !income 4200 salary h');
+    sendDiscordMessage(`${EMOJI.CROSS} Could not parse amount. Use: !income 4200 salary h`);
     return { success: false, error: 'No amount found' };
   }
   
-  // Extract type
   let incomeType = null;
   let typeIndex = -1;
   for (let i = 1; i < parts.length; i++) {
@@ -557,13 +564,12 @@ function handleIncomeCommand(message, username) {
   }
   
   if (!incomeType) {
-    sendDiscordMessage('âŒ Unknown income type. Use: salary, youtube, or other');
+    sendDiscordMessage(`${EMOJI.CROSS} Unknown income type. Use: salary, youtube, or other`);
     return { success: false, error: 'Unknown type' };
   }
   
   const typeConfig = CONFIG.INCOME_TYPES[incomeType];
   
-  // Extract spender if required
   let spender = null;
   if (typeConfig.requiresSpender) {
     for (let i = 1; i < parts.length; i++) {
@@ -576,12 +582,11 @@ function handleIncomeCommand(message, username) {
       }
     }
     if (!spender) {
-      sendDiscordMessage(`âŒ Salary requires spender (h/w). Use: !income ${amount} salary h`);
+      sendDiscordMessage(`${EMOJI.CROSS} Salary requires spender (h/w). Use: !income ${amount} salary h`);
       return { success: false, error: 'Missing spender' };
     }
   }
   
-  // Extract description
   let description = '';
   const usedIndices = new Set([0, amountIndex, typeIndex]);
   if (spender) {
@@ -595,23 +600,21 @@ function handleIncomeCommand(message, username) {
   const descParts = parts.filter((_, i) => !usedIndices.has(i));
   description = descParts.join(' ');
   
-  // Determine month (previous month)
   const now = new Date();
   const targetMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const monthKey = Utilities.formatDate(targetMonth, CONFIG.TIMEZONE, 'yyyy-MM');
   
-  // Log to SL_Income_Log
   const result = logIncomeEntry(incomeType, amount, spender, description, monthKey, username);
   
   if (result.success) {
     const spenderStr = spender ? ` (${spender})` : '';
     const updateStr = result.updated ? ' *(updated)*' : '';
-    sendDiscordMessage(`âœ… **Income Logged**${updateStr}
-â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
-ðŸ’° â‚¬${amount.toFixed(2)} â†’ ${typeConfig.label}${spenderStr}
-ðŸ“… For: ${monthKey}
-ðŸ“ ${description || '(no description)'}
-â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+    sendDiscordMessage(`${EMOJI.CHECK} **Income Logged**${updateStr}
+${EMOJI.LINE.repeat(25)}
+${EMOJI.MONEY} ${EMOJI.EURO}${amount.toFixed(2)} ${EMOJI.ARROW} ${typeConfig.label}${spenderStr}
+${EMOJI.CALENDAR} For: ${monthKey}
+${EMOJI.MEMO} ${description || '(no description)'}
+${EMOJI.LINE.repeat(25)}
 Use **!income status** to see what's still missing`);
   }
   
@@ -625,7 +628,6 @@ function logIncomeEntry(type, amount, spender, description, monthKey, inputter) 
     const timestamp = Utilities.formatDate(now, CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss");
     const entryId = `INC-${Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyyMMdd-HHmmss')}`;
     
-    // Check if entry already exists (update if so)
     const data = sheet.getDataRange().getValues();
     let existingRow = null;
     
@@ -647,26 +649,25 @@ function logIncomeEntry(type, amount, spender, description, monthKey, inputter) 
       return { success: true, updated: false };
     }
   } catch (e) {
-    sendDiscordMessage('âŒ Error logging income: ' + e.toString());
+    sendDiscordMessage(`${EMOJI.CROSS} Error logging income: ` + e.toString());
     return { success: false, error: e.toString() };
   }
 }
 
-// ============ TIME ACCOUNT LOGGING (v2.1) ============
+// ============ TIME ACCOUNT LOGGING ============
 
 function handleTACommand(message, username) {
   const parts = message.trim().split(/\s+/);
   
   if (parts.length < 3) {
-    sendDiscordMessage(`âŒ **Format:** !ta [hours] [h/w]
+    sendDiscordMessage(`${EMOJI.CROSS} **Format:** !ta [hours] [h/w]
 
 **Examples:**
-â€¢ !ta 45 h - Husband added 45 hours
-â€¢ !ta 38 w - Wife added 38 hours`);
+${EMOJI.BULLET} !ta 45 h - Husband added 45 hours
+${EMOJI.BULLET} !ta 38 w - Wife added 38 hours`);
     return { success: false, error: 'Invalid format' };
   }
   
-  // Extract hours
   let hours = null;
   for (let i = 1; i < parts.length; i++) {
     const num = parseFloat(parts[i].replace(',', '.'));
@@ -677,11 +678,10 @@ function handleTACommand(message, username) {
   }
   
   if (hours === null) {
-    sendDiscordMessage('âŒ Could not parse hours. Use: !ta 45 h');
+    sendDiscordMessage(`${EMOJI.CROSS} Could not parse hours. Use: !ta 45 h`);
     return { success: false, error: 'No hours found' };
   }
   
-  // Extract spender
   let spender = null;
   for (let i = 1; i < parts.length; i++) {
     const alias = parts[i].toLowerCase();
@@ -692,11 +692,10 @@ function handleTACommand(message, username) {
   }
   
   if (!spender) {
-    sendDiscordMessage('âŒ Please specify h or w. Use: !ta 45 h');
+    sendDiscordMessage(`${EMOJI.CROSS} Please specify h or w. Use: !ta 45 h`);
     return { success: false, error: 'Missing spender' };
   }
   
-  // Month for previous month
   const now = new Date();
   const targetMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const monthKey = Utilities.formatDate(targetMonth, CONFIG.TIMEZONE, 'yyyy-MM');
@@ -707,11 +706,11 @@ function handleTACommand(message, username) {
   if (result.success) {
     const label = spender === 'H' ? 'Husband' : 'Wife';
     const updateStr = result.updated ? ' *(updated)*' : '';
-    sendDiscordMessage(`âœ… **Time Account Logged**${updateStr}
-â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
-â±ï¸ ${hours} hours â†’ ${label}
-ðŸ“… For: ${monthKey}
-â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+    sendDiscordMessage(`${EMOJI.CHECK} **Time Account Logged**${updateStr}
+${EMOJI.LINE.repeat(25)}
+${EMOJI.TIMER} ${hours} hours ${EMOJI.ARROW} ${label}
+${EMOJI.CALENDAR} For: ${monthKey}
+${EMOJI.LINE.repeat(25)}
 Use **!income status** to see what's still missing`);
   }
   
@@ -745,12 +744,12 @@ function logTAEntry(type, hours, spender, monthKey, inputter) {
       return { success: true, updated: false };
     }
   } catch (e) {
-    sendDiscordMessage('âŒ Error logging TA hours: ' + e.toString());
+    sendDiscordMessage(`${EMOJI.CROSS} Error logging TA hours: ` + e.toString());
     return { success: false, error: e.toString() };
   }
 }
 
-// ============ INCOME STATUS CHECK (v2.1) ============
+// ============ INCOME STATUS CHECK ============
 
 function getIncomeStatus(monthKeyOverride) {
   const now = new Date();
@@ -801,59 +800,59 @@ function getIncomeStatus(monthKeyOverride) {
   }
   
   const allComplete = Object.values(entered).every(v => v);
-  const statusEmoji = allComplete ? 'âœ…' : 'ðŸ“‹';
+  const statusEmoji = allComplete ? EMOJI.CHECK : EMOJI.CLIPBOARD;
   
   let response = `${statusEmoji} **Income Status for ${targetMonth}**
-â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+${EMOJI.LINE.repeat(32)}
 
 `;
   
   response += entered['salary_h'] 
-    ? `âœ… H Net Salary: â‚¬${amounts['salary_h'].toFixed(2)}\n`
-    : `âŒ H Net Salary: *missing*\n`;
+    ? `${EMOJI.CHECK} H Net Salary: ${EMOJI.EURO}${amounts['salary_h'].toFixed(2)}\n`
+    : `${EMOJI.CROSS} H Net Salary: *missing*\n`;
     
   response += entered['salary_w']
-    ? `âœ… W Net Salary: â‚¬${amounts['salary_w'].toFixed(2)}\n`
-    : `âŒ W Net Salary: *missing*\n`;
+    ? `${EMOJI.CHECK} W Net Salary: ${EMOJI.EURO}${amounts['salary_w'].toFixed(2)}\n`
+    : `${EMOJI.CROSS} W Net Salary: *missing*\n`;
     
   response += entered['youtube']
-    ? `âœ… YouTube Gross: â‚¬${amounts['youtube'].toFixed(2)}\n`
-    : `âŒ YouTube Gross: *missing*\n`;
+    ? `${EMOJI.CHECK} YouTube Gross: ${EMOJI.EURO}${amounts['youtube'].toFixed(2)}\n`
+    : `${EMOJI.CROSS} YouTube Gross: *missing*\n`;
     
   response += amounts['other']
-    ? `âœ… Other Income: â‚¬${amounts['other'].toFixed(2)}\n`
-    : `âž– Other Income: â‚¬0 (assumed)\n`;
+    ? `${EMOJI.CHECK} Other Income: ${EMOJI.EURO}${amounts['other'].toFixed(2)}\n`
+    : `${EMOJI.MINUS} Other Income: ${EMOJI.EURO}0 (assumed)\n`;
     
   response += entered['ta_h']
-    ? `âœ… H TA Hours: ${amounts['ta_h']} hrs\n`
-    : `âŒ H TA Hours: *missing*\n`;
+    ? `${EMOJI.CHECK} H TA Hours: ${amounts['ta_h']} hrs\n`
+    : `${EMOJI.CROSS} H TA Hours: *missing*\n`;
     
   response += entered['ta_w']
-    ? `âœ… W TA Hours: ${amounts['ta_w']} hrs\n`
-    : `âŒ W TA Hours: *missing*\n`;
+    ? `${EMOJI.CHECK} W TA Hours: ${amounts['ta_w']} hrs\n`
+    : `${EMOJI.CROSS} W TA Hours: *missing*\n`;
   
   response += `
-â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”`;
+${EMOJI.LINE.repeat(32)}`;
   
   if (!allComplete) {
     response += `
 
 **Commands:**
-â€¢ !income [amount] salary h/w
-â€¢ !income [amount] youtube
-â€¢ !income [amount] other [desc]
-â€¢ !ta [hours] h/w`;
+${EMOJI.BULLET} !income [amount] salary h/w
+${EMOJI.BULLET} !income [amount] youtube
+${EMOJI.BULLET} !income [amount] other [desc]
+${EMOJI.BULLET} !ta [hours] h/w`;
   } else {
     response += `
 
-ðŸŽ‰ All required inputs complete!`;
+${EMOJI.PARTY} All required inputs complete!`;
   }
   
   sendDiscordMessage(response);
   return { success: true, complete: allComplete, entered: entered };
 }
 
-// ============ MONTHLY REMINDER TRIGGER (v2.1) ============
+// ============ MONTHLY REMINDER TRIGGER ============
 
 function checkAndSendIncomeReminder() {
   const now = new Date();
@@ -899,24 +898,24 @@ function checkAndSendIncomeReminder() {
   }
   
   let missing = [];
-  if (!entered['salary_h']) missing.push('âŒ H Net Salary');
-  if (!entered['salary_w']) missing.push('âŒ W Net Salary');
-  if (!entered['youtube']) missing.push('âŒ YouTube Gross');
-  if (!entered['ta_h']) missing.push('âŒ H TA Hours');
-  if (!entered['ta_w']) missing.push('âŒ W TA Hours');
+  if (!entered['salary_h']) missing.push(`${EMOJI.CROSS} H Net Salary`);
+  if (!entered['salary_w']) missing.push(`${EMOJI.CROSS} W Net Salary`);
+  if (!entered['youtube']) missing.push(`${EMOJI.CROSS} YouTube Gross`);
+  if (!entered['ta_h']) missing.push(`${EMOJI.CROSS} H TA Hours`);
+  if (!entered['ta_w']) missing.push(`${EMOJI.CROSS} W TA Hours`);
   
-  const reminder = `ðŸ“‹ **MONTHLY INCOME UPDATE NEEDED**
-â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+  const reminder = `${EMOJI.CLIPBOARD} **MONTHLY INCOME UPDATE NEEDED**
+${EMOJI.LINE.repeat(32)}
 
 **${monthKey}** inputs still missing:
 
 ${missing.join('\n')}
 
-â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+${EMOJI.LINE.repeat(32)}
 **Commands:**
-â€¢ !income [amount] salary h/w
-â€¢ !income [amount] youtube
-â€¢ !ta [hours] h/w
+${EMOJI.BULLET} !income [amount] salary h/w
+${EMOJI.BULLET} !income [amount] youtube
+${EMOJI.BULLET} !ta [hours] h/w
 
 Use **!income status** for full details`;
 
@@ -947,7 +946,7 @@ function logExpense(message, username) {
   const parsed = parseExpenseInput(message);
   
   if (!parsed) {
-    sendDiscordMessage('âŒ **Error:** Could not parse expense.\n\n**Format:** amount merchant\n**Example:** 45 lidl');
+    sendDiscordMessage(`${EMOJI.CROSS} **Error:** Could not parse expense.\n\n**Format:** amount merchant\n**Example:** 45 lidl`);
     return { success: false, error: 'Parse failed' };
   }
   
@@ -1093,7 +1092,7 @@ function parseExpenseInputRegex(input) {
     return `__DATE${datePatterns.length - 1}__`;
   });
   
-  let amountMatch = cleanInput.match(/(\d+(?:[.,]\d+)?)\s*[â‚¬e](?![a-df-z])/i);
+  let amountMatch = cleanInput.match(/(\d+(?:[.,]\d+)?)\s*[€e](?![a-df-z])/i);
   if (!amountMatch) {
     amountMatch = cleanInput.match(/(?:^|\s)(\d+(?:[.,]\d+)?)/);
   }
@@ -1102,7 +1101,7 @@ function parseExpenseInputRegex(input) {
   const amount = parseFloat(amountMatch[1].replace(',', '.'));
   
   const amountStr = amountMatch[1];
-  input = input.replace(new RegExp('(^|\\s)' + amountStr.replace('.', '\\.').replace(',', '\\,') + '\\s*[â‚¬e]?(?![a-df-z])', 'i'), '$1').trim();
+  input = input.replace(new RegExp('(^|\\s)' + amountStr.replace('.', '\\.').replace(',', '\\,') + '\\s*[€e]?(?![a-df-z])', 'i'), '$1').trim();
   
   let spender = null;
   const aliasPattern = Object.keys(SPENDER_ALIASES).join('|');
@@ -1155,7 +1154,7 @@ function parseWithGemini(input) {
 Input: "${input}"
 
 Extract:
-- amount: number (required, look for any number with optional â‚¬/e, comma or dot decimals)
+- amount: number (required, look for any number with optional €/e, comma or dot decimals)
 - merchant: string (required, the store/place name - NOT item details)
 - category: string or null (if explicitly mentioned from: ${categories})
 - spender: "H" or "W" or null (H if: h, husband, nha, anh, aaron; W if: w, wife, trang, chang, em)
@@ -1163,9 +1162,9 @@ Extract:
 - description: string or null (any item details, notes, or context after keywords like "items:", "for:", "desc:", or comma-separated details)
 
 Examples:
-"24â‚¬ amazon anh, category Gifts, Items: football, toys" â†’ {"amount":24,"merchant":"amazon","category":"Gifts","spender":"H","date":null,"description":"football, toys"}
-"45 rewe wife yesterday" â†’ {"amount":45,"merchant":"rewe","category":null,"spender":"W","date":"${today}","description":null}
-"lunch 15e for team meeting" â†’ {"amount":15,"merchant":"lunch","category":null,"spender":null,"date":null,"description":"team meeting"}
+"24€ amazon anh, category Gifts, Items: football, toys" → {"amount":24,"merchant":"amazon","category":"Gifts","spender":"H","date":null,"description":"football, toys"}
+"45 rewe wife yesterday" → {"amount":45,"merchant":"rewe","category":null,"spender":"W","date":"${today}","description":null}
+"lunch 15e for team meeting" → {"amount":15,"merchant":"lunch","category":null,"spender":null,"date":null,"description":"team meeting"}
 
 Return ONLY valid JSON like:
 {"amount":45,"merchant":"Rewe","category":null,"spender":"H","date":"2025-03-06","description":null}`;
@@ -1226,51 +1225,67 @@ function parseDate(input) {
   if (/\byesterday\b/i.test(input)) {
     return createDate(currentYear, currentMonth, currentDay - 1);
   }
-  if (/\btoday\b/i.test(input)) {
-    return createDate(currentYear, currentMonth, currentDay);
-  }
+  
   if (/\btomorrow\b/i.test(input)) {
     return createDate(currentYear, currentMonth, currentDay + 1);
   }
   
-  let match = input.match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4})/);
-  if (match) {
-    let year = parseInt(match[3]);
-    if (year < 100) year += 2000;
-    return createDate(year, parseInt(match[2]) - 1, parseInt(match[1]));
+  if (/\btoday\b/i.test(input)) {
+    return createDate(currentYear, currentMonth, currentDay);
   }
   
-  match = input.match(/(\d{1,2})[.\/](\d{1,2})(?!\d)/);
-  if (match) {
-    return createDate(currentYear, parseInt(match[2]) - 1, parseInt(match[1]));
+  const ddmmMatch = input.match(/(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{2,4}))?/);
+  if (ddmmMatch) {
+    const day = parseInt(ddmmMatch[1]);
+    const month = parseInt(ddmmMatch[2]) - 1;
+    let year = ddmmMatch[3] ? parseInt(ddmmMatch[3]) : currentYear;
+    if (year < 100) year += 2000;
+    return createDate(year, month, day);
   }
   
   const months = {
-    'jan': 0, 'january': 0, 'feb': 1, 'february': 1, 'mar': 2, 'march': 2,
-    'apr': 3, 'april': 3, 'may': 4, 'jun': 5, 'june': 5, 'jul': 6, 'july': 6,
-    'aug': 7, 'august': 7, 'sep': 8, 'september': 8, 'oct': 9, 'october': 9,
-    'nov': 10, 'november': 10, 'dec': 11, 'december': 11
+    'jan': 0, 'january': 0,
+    'feb': 1, 'february': 1,
+    'mar': 2, 'march': 2,
+    'apr': 3, 'april': 3,
+    'may': 4,
+    'jun': 5, 'june': 5,
+    'jul': 6, 'july': 6,
+    'aug': 7, 'august': 7,
+    'sep': 8, 'september': 8,
+    'oct': 9, 'october': 9,
+    'nov': 10, 'november': 10,
+    'dec': 11, 'december': 11
   };
   
-  match = input.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/i);
-  if (match) {
-    return createDate(currentYear, months[match[2].toLowerCase().substring(0,3)], parseInt(match[1]));
-  }
+  const monthPattern = Object.keys(months).join('|');
+  const naturalMatch = input.match(new RegExp(`(${monthPattern})\\s*(\\d{1,2})(?:st|nd|rd|th)?|` + `(\\d{1,2})(?:st|nd|rd|th)?\\s*(${monthPattern})`, 'i'));
   
-  match = input.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2})/i);
-  if (match) {
-    return createDate(currentYear, months[match[1].toLowerCase().substring(0,3)], parseInt(match[2]));
+  if (naturalMatch) {
+    let monthStr, day;
+    if (naturalMatch[1]) {
+      monthStr = naturalMatch[1].toLowerCase();
+      day = parseInt(naturalMatch[2]);
+    } else {
+      day = parseInt(naturalMatch[3]);
+      monthStr = naturalMatch[4].toLowerCase();
+    }
+    const month = months[monthStr];
+    return createDate(currentYear, month, day);
   }
   
   return null;
 }
 
 function removeDatePatterns(input) {
-  input = input.replace(/\b(yesterday|today|tomorrow)\b/gi, '');
-  input = input.replace(/\d{1,2}[.\/]\d{1,2}[.\/]\d{2,4}/g, '');
-  input = input.replace(/\d{1,2}[.\/]\d{1,2}(?!\d)/g, '');
-  input = input.replace(/\d{1,2}(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*/gi, '');
-  input = input.replace(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}/gi, '');
+  input = input.replace(/\byesterday\b/gi, '');
+  input = input.replace(/\btomorrow\b/gi, '');
+  input = input.replace(/\btoday\b/gi, '');
+  input = input.replace(/\d{1,2}[.\/]\d{1,2}([.\/]\d{2,4})?/g, '');
+  
+  const monthPattern = 'jan|january|feb|february|mar|march|apr|april|may|jun|june|jul|july|aug|august|sep|september|oct|october|nov|november|dec|december';
+  input = input.replace(new RegExp(`(${monthPattern})\\s*\\d{1,2}(?:st|nd|rd|th)?`, 'gi'), '');
+  input = input.replace(new RegExp(`\\d{1,2}(?:st|nd|rd|th)?\\s*(${monthPattern})`, 'gi'), '');
   
   return input.replace(/\s+/g, ' ').trim();
 }
@@ -1339,9 +1354,7 @@ Respond with ONLY the category name, nothing else.`;
   return null;
 }
 
-function calculateBudgetStatus(category, monthKey) {
-  const spent = calculateCategorySpent(category, monthKey);
-  
+function calculateBudgetStatus(category, monthKey, cachedSpending) {
   const budgetSheet = getSheet(CONFIG.SHEETS.BUDGET);
   const budgetData = budgetSheet.getDataRange().getValues();
   
@@ -1353,13 +1366,14 @@ function calculateBudgetStatus(category, monthKey) {
     }
   }
   
+  const spent = calculateCategorySpent(category, monthKey, cachedSpending);
   const remaining = budget - spent;
   const percent = budget > 0 ? spent / budget : 0;
   
-  let status = 'ðŸŸ¢';
-  if (percent >= 1) status = 'ðŸ”´';
-  else if (percent >= 0.8) status = 'ðŸŸ ';
-  else if (percent >= 0.5) status = 'ðŸŸ¡';
+  let status = EMOJI.GREEN;
+  if (percent >= 1) status = EMOJI.RED;
+  else if (percent >= 0.8) status = EMOJI.ORANGE;
+  else if (percent >= 0.5) status = EMOJI.YELLOW;
   
   return {
     category: category,
@@ -1371,7 +1385,47 @@ function calculateBudgetStatus(category, monthKey) {
   };
 }
 
-function calculateCategorySpent(category, monthKey) {
+// Helper: Get all category spending in ONE sheet read
+function getAllCategorySpending(monthKey) {
+  const sheet = getSheet(CONFIG.SHEETS.LEDGER);
+  const data = sheet.getDataRange().getValues();
+  
+  const searchKey = monthKey.replace(/^'/, '');
+  const spending = {};
+  
+  // Initialize all categories to 0
+  CONFIG.CATEGORIES.forEach(cat => {
+    spending[cat] = 0;
+  });
+  
+  // Single pass through all data
+  for (let i = 1; i < data.length; i++) {
+    let storedKey = data[i][14];
+    if (storedKey && typeof storedKey === 'string') {
+      storedKey = storedKey.replace(/^'/, '');
+    }
+    
+    if (storedKey === searchKey) {
+      const category = data[i][6];
+      const amount = data[i][3] || 0;
+      if (spending.hasOwnProperty(category)) {
+        spending[category] += amount;
+      } else {
+        spending[category] = amount;
+      }
+    }
+  }
+  
+  return spending;
+}
+
+function calculateCategorySpent(category, monthKey, cachedSpending) {
+  // If cached data provided, use it (fast path)
+  if (cachedSpending) {
+    return cachedSpending[category] || 0;
+  }
+  
+  // Fallback: single category lookup (for backward compatibility)
   const sheet = getSheet(CONFIG.SHEETS.LEDGER);
   const data = sheet.getDataRange().getValues();
   
@@ -1396,35 +1450,46 @@ function calculateCategorySpent(category, monthKey) {
 function getBudgetStatus() {
   const monthKey = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM');
   const monthName = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'MMMM yyyy');
+  
+  // Read budget data
   const budgetSheet = getSheet(CONFIG.SHEETS.BUDGET);
   const budgetData = budgetSheet.getDataRange().getValues();
   
-  let response = `ðŸ“Š **BUDGET STATUS** (${monthName})\n`;
+  // Read ALL spending in ONE call
+  const allSpending = getAllCategorySpending(monthKey);
+  
+  let response = `${EMOJI.CHART} **BUDGET STATUS** (${monthName})\n`;
   response += '```\n';
   response += 'Category              Spent    Budget   %\n';
-  response += 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
+  response += `${EMOJI.LINE.repeat(41)}\n`;
   
   let totalBudget = 0;
   let totalSpent = 0;
   
+  // SL_Budget has multiple months - filter for current month only
+  // Schema: [category, Budget, Month_Key, Spent, Remaining, Percent]
   for (let i = 1; i < budgetData.length; i++) {
     const category = budgetData[i][0];
     const budget = budgetData[i][1] || 0;
+    const rowMonthKey = String(budgetData[i][2] || '').replace(/^'/, '');
     
+    // Skip rows that don't match current month
+    if (rowMonthKey !== monthKey) continue;
     if (!category) continue;
     
-    const spent = calculateCategorySpent(category, monthKey);
+    // Use cached spending data - NO extra sheet reads!
+    const spent = allSpending[category] || 0;
     const percent = budget > 0 ? spent / budget : 0;
     
-    let status = 'ðŸŸ¢';
-    if (percent >= 1) status = 'ðŸ”´';
-    else if (percent >= 0.8) status = 'ðŸŸ ';
-    else if (percent >= 0.5) status = 'ðŸŸ¡';
+    let status = EMOJI.GREEN;
+    if (percent >= 1) status = EMOJI.RED;
+    else if (percent >= 0.8) status = EMOJI.ORANGE;
+    else if (percent >= 0.5) status = EMOJI.YELLOW;
     
     const percentStr = (percent * 100).toFixed(0).padStart(3);
     const catName = category.substring(0, 18).padEnd(18);
-    const spentStr = ('â‚¬' + spent.toFixed(0)).padStart(8);
-    const budgetStr = ('â‚¬' + budget).padStart(8);
+    const spentStr = (`${EMOJI.EURO}` + spent.toFixed(0)).padStart(8);
+    const budgetStr = (`${EMOJI.EURO}` + budget).padStart(8);
     
     response += `${status} ${catName} ${spentStr} ${budgetStr} ${percentStr}%\n`;
     
@@ -1433,8 +1498,8 @@ function getBudgetStatus() {
   }
   
   const totalPercent = totalBudget > 0 ? totalSpent / totalBudget : 0;
-  response += 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
-  response += `   TOTAL              ${('â‚¬' + totalSpent.toFixed(0)).padStart(8)} ${('â‚¬' + totalBudget).padStart(8)} ${(totalPercent * 100).toFixed(0).padStart(3)}%\n`;
+  response += `${EMOJI.LINE.repeat(41)}\n`;
+  response += `   TOTAL              ${(`${EMOJI.EURO}` + totalSpent.toFixed(0)).padStart(8)} ${(`${EMOJI.EURO}` + totalBudget).padStart(8)} ${(totalPercent * 100).toFixed(0).padStart(3)}%\n`;
   response += '```';
   
   sendDiscordMessage(response);
@@ -1444,34 +1509,46 @@ function getBudgetStatus() {
 function getBudgetLeft() {
   const monthKey = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM');
   const monthName = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'MMMM yyyy');
+  
+  // Read budget data
   const budgetSheet = getSheet(CONFIG.SHEETS.BUDGET);
   const budgetData = budgetSheet.getDataRange().getValues();
   
-  let response = `ðŸ’° **BUDGET REMAINING** (${monthName})\n`;
+  // Read ALL spending in ONE call
+  const allSpending = getAllCategorySpending(monthKey);
+  
+  let response = `${EMOJI.MONEY} **BUDGET REMAINING** (${monthName})\n`;
   response += '```\n';
   response += 'Category              Left     Budget  Used\n';
-  response += 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
+  response += `${EMOJI.LINE.repeat(41)}\n`;
   
   let totalBudget = 0;
   let totalSpent = 0;
   
+  // SL_Budget has multiple months - filter for current month only
+  // Schema: [category, Budget, Month_Key, Spent, Remaining, Percent]
   for (let i = 1; i < budgetData.length; i++) {
     const category = budgetData[i][0];
     const budget = budgetData[i][1] || 0;
+    const rowMonthKey = String(budgetData[i][2] || '').replace(/^'/, '');
+    
+    // Skip rows that don't match current month
+    if (rowMonthKey !== monthKey) continue;
     if (!category) continue;
     
-    const spent = calculateCategorySpent(category, monthKey);
+    // Use cached spending data
+    const spent = allSpending[category] || 0;
     const remaining = budget - spent;
     const percent = budget > 0 ? spent / budget : 0;
     
-    let status = 'ðŸŸ¢';
-    if (percent >= 1) status = 'ðŸ”´';
-    else if (percent >= 0.8) status = 'ðŸŸ ';
-    else if (percent >= 0.5) status = 'ðŸŸ¡';
+    let status = EMOJI.GREEN;
+    if (remaining < 0) status = EMOJI.RED;
+    else if (percent >= 0.8) status = EMOJI.ORANGE;
+    else if (percent >= 0.5) status = EMOJI.YELLOW;
     
     const catName = category.substring(0, 18).padEnd(18);
-    const remainingStr = remaining >= 0 ? ('â‚¬' + remaining.toFixed(0)).padStart(8) : ('-â‚¬' + Math.abs(remaining).toFixed(0)).padStart(8);
-    const budgetStr = ('â‚¬' + budget).padStart(8);
+    const remainingStr = remaining >= 0 ? (`${EMOJI.EURO}` + remaining.toFixed(0)).padStart(8) : (`-${EMOJI.EURO}` + Math.abs(remaining).toFixed(0)).padStart(8);
+    const budgetStr = (`${EMOJI.EURO}` + budget).padStart(8);
     const percentStr = ((percent * 100).toFixed(0) + '%').padStart(4);
     
     response += `${status} ${catName} ${remainingStr} ${budgetStr} ${percentStr}\n`;
@@ -1482,8 +1559,8 @@ function getBudgetLeft() {
   
   const totalRemaining = totalBudget - totalSpent;
   const totalPercent = totalBudget > 0 ? totalSpent / totalBudget : 0;
-  response += 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
-  response += `   TOTAL              ${('â‚¬' + totalRemaining.toFixed(0)).padStart(8)} ${('â‚¬' + totalBudget).padStart(8)} ${((totalPercent * 100).toFixed(0) + '%').padStart(4)}\n`;
+  response += `${EMOJI.LINE.repeat(41)}\n`;
+  response += `   TOTAL              ${(`${EMOJI.EURO}` + totalRemaining.toFixed(0)).padStart(8)} ${(`${EMOJI.EURO}` + totalBudget).padStart(8)} ${((totalPercent * 100).toFixed(0) + '%').padStart(4)}\n`;
   response += '```';
   
   sendDiscordMessage(response);
@@ -1500,10 +1577,10 @@ function getYTDStatus() {
   const ledgerSheet = getSheet(CONFIG.SHEETS.LEDGER);
   const ledgerData = ledgerSheet.getDataRange().getValues();
   
-  let response = `ðŸ“Š **YEAR TO DATE** (${year})\n`;
+  let response = `${EMOJI.CHART} **YEAR TO DATE** (${year})\n`;
   response += '```\n';
   response += 'Category              Spent    Budget   %\n';
-  response += 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
+  response += `${EMOJI.LINE.repeat(41)}\n`;
   
   let totalBudget = 0;
   let totalSpent = 0;
@@ -1528,15 +1605,15 @@ function getYTDStatus() {
     }
     
     const percent = ytdBudget > 0 ? ytdSpent / ytdBudget : 0;
-    let status = 'ðŸŸ¢';
-    if (percent >= 1) status = 'ðŸ”´';
-    else if (percent >= 0.8) status = 'ðŸŸ ';
-    else if (percent >= 0.5) status = 'ðŸŸ¡';
+    let status = EMOJI.GREEN;
+    if (percent >= 1) status = EMOJI.RED;
+    else if (percent >= 0.8) status = EMOJI.ORANGE;
+    else if (percent >= 0.5) status = EMOJI.YELLOW;
     
     const percentStr = (percent * 100).toFixed(0).padStart(3);
     const catName = category.substring(0, 18).padEnd(18);
-    const spentStr = ('â‚¬' + ytdSpent.toFixed(0)).padStart(8);
-    const budgetStr = ('â‚¬' + ytdBudget.toFixed(0)).padStart(8);
+    const spentStr = (`${EMOJI.EURO}` + ytdSpent.toFixed(0)).padStart(8);
+    const budgetStr = (`${EMOJI.EURO}` + ytdBudget.toFixed(0)).padStart(8);
     
     response += `${status} ${catName} ${spentStr} ${budgetStr} ${percentStr}%\n`;
     
@@ -1545,8 +1622,8 @@ function getYTDStatus() {
   }
   
   const totalPercent = totalBudget > 0 ? totalSpent / totalBudget : 0;
-  response += 'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
-  response += `   TOTAL YTD          ${('â‚¬' + totalSpent.toFixed(0)).padStart(8)} ${('â‚¬' + totalBudget.toFixed(0)).padStart(8)} ${(totalPercent * 100).toFixed(0).padStart(3)}%\n`;
+  response += `${EMOJI.LINE.repeat(41)}\n`;
+  response += `   TOTAL YTD          ${(`${EMOJI.EURO}` + totalSpent.toFixed(0)).padStart(8)} ${(`${EMOJI.EURO}` + totalBudget.toFixed(0)).padStart(8)} ${(totalPercent * 100).toFixed(0).padStart(3)}%\n`;
   response += '```';
   
   sendDiscordMessage(response);
@@ -1558,7 +1635,7 @@ function getTodayTransactions() {
   const sheet = getSheet(CONFIG.SHEETS.LEDGER);
   const data = sheet.getDataRange().getValues();
   
-  let response = `ðŸ“… **Today's Transactions** (${today})\nâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n`;
+  let response = `${EMOJI.CALENDAR} **Today's Transactions** (${today})\n${EMOJI.LINE.repeat(29)}\n`;
   let total = 0;
   let count = 0;
   
@@ -1568,16 +1645,16 @@ function getTodayTransactions() {
       const amount = data[i][3];
       const merchant = data[i][4];
       const category = data[i][6];
-      response += `â‚¬${amount.toFixed(2)} - ${merchant} (${category})\n`;
+      response += `${EMOJI.EURO}${amount.toFixed(2)} - ${merchant} (${category})\n`;
       total += amount;
       count++;
     }
   }
   
   if (count === 0) {
-    response += 'âœ¨ No transactions yet today';
+    response += `${EMOJI.SPARKLE} No transactions yet today`;
   } else {
-    response += `â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n**Total:** â‚¬${total.toFixed(2)} (${count} transactions)`;
+    response += `${EMOJI.LINE.repeat(29)}\n**Total:** ${EMOJI.EURO}${total.toFixed(2)} (${count} transactions)`;
   }
   
   sendDiscordMessage(response);
@@ -1591,7 +1668,7 @@ function getWeekTransactions() {
   const sheet = getSheet(CONFIG.SHEETS.LEDGER);
   const data = sheet.getDataRange().getValues();
   
-  let response = 'ðŸ“† **This Week\'s Transactions**\nâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n';
+  let response = `${EMOJI.DATE} **This Week's Transactions**\n${EMOJI.LINE.repeat(29)}\n`;
   let total = 0;
   let count = 0;
   
@@ -1602,16 +1679,16 @@ function getWeekTransactions() {
       const merchant = data[i][4];
       const category = data[i][6];
       const dateStr = Utilities.formatDate(txnDate, CONFIG.TIMEZONE, 'MM-dd');
-      response += `${dateStr}: â‚¬${amount.toFixed(2)} - ${merchant} (${category})\n`;
+      response += `${dateStr}: ${EMOJI.EURO}${amount.toFixed(2)} - ${merchant} (${category})\n`;
       total += amount;
       count++;
     }
   }
   
   if (count === 0) {
-    response += 'âœ¨ No transactions this week';
+    response += `${EMOJI.SPARKLE} No transactions this week`;
   } else {
-    response += `â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n**Total:** â‚¬${total.toFixed(2)} (${count} transactions)`;
+    response += `${EMOJI.LINE.repeat(29)}\n**Total:** ${EMOJI.EURO}${total.toFixed(2)} (${count} transactions)`;
   }
   
   sendDiscordMessage(response);
@@ -1624,13 +1701,13 @@ function handleUndo(username) {
   const lastTxnTime = parseInt(props.getProperty('last_txn_time') || '0');
   
   if (!lastTxnId) {
-    sendDiscordMessage('âŒ No recent transaction to undo.');
+    sendDiscordMessage(`${EMOJI.CROSS} No recent transaction to undo.`);
     return { success: false };
   }
   
   const now = new Date().getTime();
   if (now - lastTxnTime > 10 * 60 * 1000) {
-    sendDiscordMessage('âŒ Last transaction is older than 10 minutes. Cannot undo.');
+    sendDiscordMessage(`${EMOJI.CROSS} Last transaction is older than 10 minutes. Cannot undo.`);
     return { success: false };
   }
   
@@ -1651,7 +1728,7 @@ function handleUndo(username) {
   }
   
   if (!txnDetails) {
-    sendDiscordMessage('âŒ Transaction not found in sheet.');
+    sendDiscordMessage(`${EMOJI.CROSS} Transaction not found in sheet.`);
     return { success: false };
   }
   
@@ -1659,11 +1736,11 @@ function handleUndo(username) {
   props.setProperty('pending_undo_row', txnDetails.row.toString());
   
   const minutesAgo = Math.round((now - lastTxnTime) / 60000);
-  sendDiscordMessage(`âš ï¸ **Delete this transaction?**
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-â‚¬${txnDetails.amount.toFixed(2)} - ${txnDetails.merchant} (${txnDetails.category})
+  sendDiscordMessage(`${EMOJI.WARNING} **Delete this transaction?**
+${EMOJI.LINE.repeat(29)}
+${EMOJI.EURO}${txnDetails.amount.toFixed(2)} - ${txnDetails.merchant} (${txnDetails.category})
 Logged ${minutesAgo} min ago
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+${EMOJI.LINE.repeat(29)}
 Reply **!undo confirm** to delete`);
   
   return { success: true };
@@ -1674,7 +1751,7 @@ function executeUndo(username) {
   const pendingUndo = props.getProperty('pending_undo');
   
   if (!pendingUndo) {
-    sendDiscordMessage('âŒ No pending undo. Use !undo first.');
+    sendDiscordMessage(`${EMOJI.CROSS} No pending undo. Use !undo first.`);
     return { success: false };
   }
   
@@ -1691,7 +1768,7 @@ function executeUndo(username) {
     }
     
     if (!rowToDelete) {
-      sendDiscordMessage('âŒ Transaction not found. May have been already deleted.');
+      sendDiscordMessage(`${EMOJI.CROSS} Transaction not found. May have been already deleted.`);
       props.deleteProperty('pending_undo');
       props.deleteProperty('pending_undo_row');
       return { success: false };
@@ -1705,10 +1782,10 @@ function executeUndo(username) {
     props.deleteProperty('last_txn_time');
     props.deleteProperty('last_txn_user');
     
-    sendDiscordMessage(`âœ¦ Deleted transaction ${pendingUndo}`);
+    sendDiscordMessage(`${EMOJI.CHECK} Deleted transaction ${pendingUndo}`);
     return { success: true };
   } catch (e) {
-    sendDiscordMessage('âŒ Error deleting: ' + e.toString());
+    sendDiscordMessage(`${EMOJI.CROSS} Error deleting: ` + e.toString());
     return { success: false };
   }
 }
@@ -1716,21 +1793,26 @@ function executeUndo(username) {
 // ============ FORMATTING ============
 
 function formatExpenseResponse(parsed, category, spender, categorization, budgetStatus) {
-  const catTag = categorization === 'ai' ? '(ai âš ï¸)' : '(user)';
+  const catTag = categorization === 'ai' ? `(ai ${EMOJI.WARNING})` : '(user)';
   
-  return `âœ… **Logged:** â‚¬${parsed.amount.toFixed(2)} â†’ ${category}
-ðŸ“ Merchant: ${parsed.merchant}
-ðŸ‘¤ Spender: ${spender}
-ðŸ·ï¸ Category: ${category} ${catTag}
+  return `${EMOJI.CHECK} **Logged:** ${EMOJI.EURO}${parsed.amount.toFixed(2)} ${EMOJI.ARROW} ${category}
+${EMOJI.MEMO} Merchant: ${parsed.merchant}
+${EMOJI.PERSON} Spender: ${spender}
+🏷️ Category: ${category} ${catTag}
 
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-ðŸ“Š **BUDGET STATUS**
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-**${category}:** â‚¬${budgetStatus.spent.toFixed(0)}/â‚¬${budgetStatus.budget} (${(budgetStatus.percent * 100).toFixed(0)}%) ${budgetStatus.status}
-â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€`;
+${EMOJI.LINE.repeat(29)}
+${EMOJI.CHART} **BUDGET STATUS**
+${EMOJI.LINE.repeat(29)}
+**${category}:** ${EMOJI.EURO}${budgetStatus.spent.toFixed(0)}/${EMOJI.EURO}${budgetStatus.budget} (${(budgetStatus.percent * 100).toFixed(0)}%) ${budgetStatus.status}
+${EMOJI.LINE.repeat(29)}`;
 }
 
-// ============ DISCORD ============
+// ============ UTILITIES ============
+
+function getSheet(name) {
+  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  return ss.getSheetByName(name);
+}
 
 function sendDiscordMessage(content) {
   const config = getConfigValues();
@@ -1759,18 +1841,13 @@ function sendDiscordMessage(content) {
   }
 }
 
-// ============ UTILITIES ============
-
-function getSheet(sheetName) {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  return ss.getSheetByName(sheetName);
-}
-
 function getConfigValues() {
   const sheet = getSheet(CONFIG.SHEETS.CONFIG);
-  const data = sheet.getDataRange().getValues();
+  if (!sheet) return {};
   
+  const data = sheet.getDataRange().getValues();
   const config = {};
+  
   for (let i = 1; i < data.length; i++) {
     const key = data[i][0];
     const value = data[i][1];
@@ -1792,6 +1869,15 @@ function generateTxnId() {
 
 // ============ DASHBOARD API ============
 
+function getDashboardData() {
+  // This function should be implemented based on your dashboard requirements
+  // Returning a placeholder for now
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    message: 'Dashboard data endpoint'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
 function getExpenseBreakdown(month) {
   try {
     const ledgerSheet = getSheet(CONFIG.SHEETS.LEDGER);
@@ -1803,7 +1889,6 @@ function getExpenseBreakdown(month) {
     
     const ledgerData = ledgerSheet.getDataRange().getValues();
     
-    // Initialize category data with transactions array
     const categoryData = {};
     CONFIG.CATEGORIES.forEach(cat => {
       categoryData[cat] = {
@@ -1812,7 +1897,6 @@ function getExpenseBreakdown(month) {
       };
     });
     
-    // Collect all transactions by category
     for (let i = 1; i < ledgerData.length; i++) {
       const txnDate = new Date(ledgerData[i][2]);
       const amount = ledgerData[i][3] || 0;
@@ -1829,7 +1913,6 @@ function getExpenseBreakdown(month) {
             amount: Math.round(amount * 100) / 100
           });
         } else {
-          // Handle unknown category
           categoryData[category] = {
             spent: amount,
             transactions: [{
@@ -1843,7 +1926,6 @@ function getExpenseBreakdown(month) {
       }
     }
     
-    // Get budget data
     const budgetData = budgetSheet.getDataRange().getValues();
     const budgetMap = {};
     for (let i = 1; i < budgetData.length; i++) {
@@ -1860,7 +1942,6 @@ function getExpenseBreakdown(month) {
       }
     }
     
-    // Build categories array with transaction details
     const categories = [];
     let totalSpent = 0;
     let totalBudget = 0;
@@ -1874,11 +1955,9 @@ function getExpenseBreakdown(month) {
       const percent = hasBudget && budget > 0 ? Math.round((spent / budget) * 100) : null;
       const txnCount = data.transactions.length;
       
-      // Sort transactions for recent (by date DESC) and top (by amount DESC)
       const txnsByDate = [...data.transactions].sort((a, b) => b.date_sort - a.date_sort);
       const txnsByAmount = [...data.transactions].sort((a, b) => b.amount - a.amount);
       
-      // Get top 10 recent and top 10 by amount
       const recentTxns = txnsByDate.slice(0, 10).map(t => ({
         date: t.date,
         merchant: t.merchant,
@@ -1891,7 +1970,6 @@ function getExpenseBreakdown(month) {
         amount: t.amount
       }));
       
-      // Calculate insights
       const avgAmount = txnCount > 0 ? Math.round((spent / txnCount) * 100) / 100 : 0;
       const maxTxn = txnsByAmount[0] || null;
       
@@ -1919,7 +1997,6 @@ function getExpenseBreakdown(month) {
       }
     });
     
-    // Sort by spent DESC
     categories.sort((a, b) => b.spent - a.spent);
     
     return ContentService.createTextOutput(JSON.stringify({
@@ -1947,10 +2024,10 @@ function getExpenseBreakdown(month) {
 
 function getStatusEmojiDashboard(percent) {
   if (percent === null) return 'N/A';
-  if (percent >= 100) return 'ðŸ”´';
-  if (percent >= 80) return 'ðŸŸ ';
-  if (percent >= 50) return 'ðŸŸ¡';
-  return 'ðŸŸ¢';
+  if (percent >= 100) return EMOJI.RED;
+  if (percent >= 80) return EMOJI.ORANGE;
+  if (percent >= 50) return EMOJI.YELLOW;
+  return EMOJI.GREEN;
 }
 
 function getMonthName(monthNum) {
@@ -1961,15 +2038,138 @@ function getMonthName(monthNum) {
   return months[monthNum - 1] || 'Unknown';
 }
 
-function countTransactionsInMonth(ledgerData, monthStart, monthEnd) {
+// ============ SCHEDULED SUMMARIES ============
+
+// Daily Summary (called by Time-Driven trigger at 9:00 AM)
+function sendDailySummary() {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = Utilities.formatDate(yesterday, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+  const yesterdayDisplay = Utilities.formatDate(yesterday, CONFIG.TIMEZONE, 'EEE, dd MMM');
+  
+  const sheet = getSheet(CONFIG.SHEETS.LEDGER);
+  const data = sheet.getDataRange().getValues();
+  
+  let total = 0;
   let count = 0;
-  for (let i = 1; i < ledgerData.length; i++) {
-    const txnDate = new Date(ledgerData[i][2]);
-    if (txnDate >= monthStart && txnDate <= monthEnd) {
+  const categories = {};
+  const transactions = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    const txnDate = data[i][2];
+    if (!txnDate) continue;
+    
+    const txnDateStr = Utilities.formatDate(new Date(txnDate), CONFIG.TIMEZONE, 'yyyy-MM-dd');
+    if (txnDateStr === yesterdayStr) {
+      const amount = data[i][3] || 0;
+      const merchant = data[i][4] || 'Unknown';
+      const category = data[i][6] || 'Uncategorized';
+      
+      total += amount;
       count++;
+      categories[category] = (categories[category] || 0) + amount;
+      transactions.push({ merchant, amount, category });
     }
   }
-  return count;
+  
+  if (count === 0) {
+    Logger.log('No transactions yesterday, skipping daily summary');
+    return;
+  }
+  
+  let response = `${EMOJI.CALENDAR} **Daily Summary** (${yesterdayDisplay})\n`;
+  response += `${EMOJI.LINE.repeat(32)}\n`;
+  response += `**${count} transactions** totaling **${EMOJI.EURO}${total.toFixed(2)}**\n\n`;
+  
+  // Top categories
+  const sortedCats = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+  response += `${EMOJI.CHART} **By Category:**\n`;
+  for (const [cat, amt] of sortedCats.slice(0, 5)) {
+    response += `${EMOJI.BULLET} ${cat}: ${EMOJI.EURO}${amt.toFixed(2)}\n`;
+  }
+  
+  // Top transactions
+  if (transactions.length > 0) {
+    response += `\n${EMOJI.TRENDING} **Largest:**\n`;
+    const topTxns = transactions.sort((a, b) => b.amount - a.amount).slice(0, 3);
+    for (const txn of topTxns) {
+      response += `${EMOJI.BULLET} ${EMOJI.EURO}${txn.amount.toFixed(2)} - ${txn.merchant}\n`;
+    }
+  }
+  
+  sendDiscordMessage(response);
+  Logger.log('Sent daily summary for ' + yesterdayStr);
+}
+
+// Weekly Summary (called by Time-Driven trigger on Mondays)
+function sendWeeklySummary() {
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const weekAgoStr = Utilities.formatDate(weekAgo, CONFIG.TIMEZONE, 'dd MMM');
+  const nowStr = Utilities.formatDate(now, CONFIG.TIMEZONE, 'dd MMM');
+  
+  const sheet = getSheet(CONFIG.SHEETS.LEDGER);
+  const data = sheet.getDataRange().getValues();
+  
+  let total = 0;
+  let count = 0;
+  const categories = {};
+  const dailyTotals = {};
+  
+  for (let i = 1; i < data.length; i++) {
+    const txnDate = new Date(data[i][2]);
+    if (txnDate >= weekAgo && txnDate <= now) {
+      const amount = data[i][3] || 0;
+      const category = data[i][6] || 'Uncategorized';
+      const dayKey = Utilities.formatDate(txnDate, CONFIG.TIMEZONE, 'EEE');
+      
+      total += amount;
+      count++;
+      categories[category] = (categories[category] || 0) + amount;
+      dailyTotals[dayKey] = (dailyTotals[dayKey] || 0) + amount;
+    }
+  }
+  
+  if (count === 0) {
+    Logger.log('No transactions this week, skipping weekly summary');
+    return;
+  }
+  
+  // Get budget for comparison
+  const budgetSheet = getSheet(CONFIG.SHEETS.BUDGET);
+  const budgetData = budgetSheet.getDataRange().getValues();
+  let totalBudget = 0;
+  for (let i = 1; i < budgetData.length; i++) {
+    totalBudget += budgetData[i][1] || 0;
+  }
+  
+  const weeklyBudget = totalBudget / 4.33;
+  const percent = weeklyBudget > 0 ? (total / weeklyBudget * 100).toFixed(0) : 0;
+  
+  let response = `${EMOJI.CHART} **Weekly Summary** (${weekAgoStr} - ${nowStr})\n`;
+  response += `${EMOJI.LINE.repeat(32)}\n`;
+  response += `**${count} transactions** totaling **${EMOJI.EURO}${total.toFixed(2)}**\n`;
+  response += `Weekly pace: **${percent}%** of budget\n\n`;
+  
+  // Top categories
+  response += `${EMOJI.TRENDING} **Top Categories:**\n`;
+  const sortedCats = Object.entries(categories).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  for (const [cat, amt] of sortedCats) {
+    const catPercent = (amt / total * 100).toFixed(0);
+    response += `${EMOJI.BULLET} ${cat}: ${EMOJI.EURO}${amt.toFixed(2)} (${catPercent}%)\n`;
+  }
+  
+  // Daily breakdown
+  response += `\n${EMOJI.CALENDAR} **Daily Breakdown:**\n`;
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  for (const day of days) {
+    const dayTotal = dailyTotals[day] || 0;
+    const bar = dayTotal > 0 ? EMOJI.BULLET.repeat(Math.min(Math.ceil(dayTotal / 20), 10)) : '-';
+    response += `${day}: ${EMOJI.EURO}${dayTotal.toFixed(0).padStart(4)} ${bar}\n`;
+  }
+  
+  sendDiscordMessage(response);
+  Logger.log('Sent weekly summary');
 }
 
 // ============ TEST FUNCTIONS ============
