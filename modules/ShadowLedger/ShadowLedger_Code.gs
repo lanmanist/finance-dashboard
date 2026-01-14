@@ -1933,7 +1933,7 @@ function formatExpenseResponse(parsed, category, spender, categorization, budget
   return `${EMOJI.CHECK} **Logged:** ${EMOJI.EURO}${parsed.amount.toFixed(2)} ${EMOJI.ARROW} ${category}${currencyLine}
 ${EMOJI.MEMO} Merchant: ${parsed.merchant}
 ${EMOJI.PERSON} Spender: ${spender}
-ðŸ·ï¸ Category: ${category} ${catTag}
+📊 Category: ${category} ${catTag}
 
 ${EMOJI.LINE.repeat(29)}
 ${EMOJI.CHART} **BUDGET STATUS**
