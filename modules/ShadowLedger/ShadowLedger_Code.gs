@@ -1,7 +1,15 @@
 /**
  * ShadowLedger - Google Apps Script
- * Version: 2.3.1
- * Date: 2026-01-11
+ * Version: 2.4.0
+ * Date: 2026-01-13
+ * 
+ * v2.4.0 Changes:
+ * - NEW: Budget category "Fees, Interest, Bureaucracy, Documents"
+ * - NEW: VND currency support (200kVND, 200000VND, 200k)
+ * - VND auto-converts to EUR via GOOGLEFINANCE
+ * - Original VND amount stored in columns P, Q, R
+ * 
+ * v2.3.1 Changes:
  * 
  * v2.3.0 Changes:
  * - Fixed UTF-8 encoding for all emojis
@@ -59,6 +67,7 @@ const CONFIG = {
     'Business & Subscription',
     'Donation',
     'Special IO',
+    'Fees, Interest, Bureaucracy, Documents',
     'Buffer'
   ],
   INCOME_TYPES: {
@@ -101,8 +110,95 @@ const EMOJI = {
   SPARKLE: '✨',
   PARTY: '🎉',
   MINUS: '➖',
-  TRENDING: '📈'
+  TRENDING: '📈',
+  VND: '\u{1F1FB}\u{1F1F3}'
 };
+
+// ============ VND CURRENCY SUPPORT ============
+
+/**
+ * Get VND exchange rate from SL_Config (populated by GOOGLEFINANCE formula)
+ * Returns EUR per 1 VND (e.g., 0.0000365 means 1 VND = €0.0000365)
+ */
+function getVndRate() {
+  const config = getConfigValues();
+  const rate = config.vnd_rate;
+  
+  // vnd_rate from GOOGLEFINANCE is EUR:VND (e.g., 27397 means 1 EUR = 27397 VND)
+  // We need VND:EUR, so we invert it
+  if (rate && !isNaN(rate) && rate > 0) {
+    return 1 / rate;
+  }
+  
+  // Fallback rate if GOOGLEFINANCE fails completely
+  Logger.log('VND rate not available, using fallback');
+  return 1 / 27000; // ~0.000037
+}
+
+/**
+ * Detect and convert VND amounts in input
+ * Patterns: 200000VND, 200.000VND, 200,000VND, 200kVND, 200k VND, 200k (alone)
+ * Returns: { eurAmount, originalAmount, originalCurrency, exchangeRate, cleanedInput }
+ */
+function detectAndConvertVnd(input) {
+  // Pattern 1: Number with k suffix followed by VND (200kVND, 200k VND)
+  // Pattern 2: Number followed by VND (200000VND, 200.000VND, 200,000VND)
+  // Pattern 3: Number with k suffix alone (200k) - interpreted as VND
+  
+  let vndAmount = null;
+  let matchedPattern = null;
+  
+  // Check for explicit VND patterns first
+  // Matches: 200000VND, 200.000VND, 200,000VND, 200kVND, 200k VND
+  const vndExplicitMatch = input.match(/(\d+(?:[.,]\d{3})*(?:[.,]\d+)?)\s*k?\s*VND/i);
+  if (vndExplicitMatch) {
+    let numStr = vndExplicitMatch[1];
+    // Check if 'k' is present before VND
+    const hasK = /k\s*VND/i.test(vndExplicitMatch[0]);
+    
+    // Remove thousand separators (dots or commas followed by 3 digits)
+    // But preserve decimal comma/dot
+    numStr = numStr.replace(/[.,](?=\d{3}(?:[.,]|$|\s|VND))/g, '');
+    // Convert decimal comma to dot
+    numStr = numStr.replace(',', '.');
+    
+    vndAmount = parseFloat(numStr);
+    if (hasK) {
+      vndAmount *= 1000;
+    }
+    matchedPattern = vndExplicitMatch[0];
+  }
+  
+  // Check for bare 'k' suffix (200k alone = 200,000 VND)
+  if (!vndAmount) {
+    const kAloneMatch = input.match(/(\d+(?:[.,]\d+)?)\s*k(?!\s*[a-zA-Z])/i);
+    if (kAloneMatch) {
+      let numStr = kAloneMatch[1].replace(',', '.');
+      vndAmount = parseFloat(numStr) * 1000;
+      matchedPattern = kAloneMatch[0];
+    }
+  }
+  
+  // If no VND detected, return null (normal EUR processing)
+  if (!vndAmount || isNaN(vndAmount)) {
+    return null;
+  }
+  
+  // Convert VND to EUR
+  const rate = getVndRate();
+  const eurAmount = Math.round(vndAmount * rate * 100) / 100;
+  
+  // Clean the input by removing the VND pattern
+  const cleanedInput = input.replace(matchedPattern, eurAmount.toFixed(2)).trim();
+  
+  return {
+    eurAmount: eurAmount,
+    originalAmount: vndAmount,
+    originalCurrency: 'VND',
+    exchangeRate: rate,
+    cleanedInput: cleanedInput
+  };
+}
 
 // ============ MAIN ENTRY POINT ============
 
@@ -142,7 +238,7 @@ function doGet(e) {
   if (action === 'test') {
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
-      message: 'ShadowLedger API v2.3.1 is running',
+      message: 'ShadowLedger API v2.4.0 is running',
       timestamp: new Date().toISOString(),
       endpoints: [
         '?action=dashboard - Financial data for Sankey',
@@ -971,6 +1067,7 @@ function logExpense(message, username) {
   const monthKey = Utilities.formatDate(txnDate, CONFIG.TIMEZONE, 'yyyy-MM');
   
   const sheet = getSheet(CONFIG.SHEETS.LEDGER);
+  const currencyInfo = parsed.currencyInfo || {};
   sheet.appendRow([
     txnId,
     nowFormatted,
@@ -986,7 +1083,10 @@ function logExpense(message, username) {
     categorization === 'user',
     categorization === 'user' ? nowFormatted : '',
     message,
-    "'" + monthKey
+    "'" + monthKey,
+    currencyInfo.originalAmount || '',
+    currencyInfo.originalCurrency || '',
+    currencyInfo.exchangeRate || ''
   ]);
   
   const props = PropertiesService.getScriptProperties();
@@ -1034,6 +1134,7 @@ function logExpenseSilent(message, username) {
   const monthKey = Utilities.formatDate(txnDate, CONFIG.TIMEZONE, 'yyyy-MM');
   
   const sheet = getSheet(CONFIG.SHEETS.LEDGER);
+  const currencyInfo = parsed.currencyInfo || {};
   sheet.appendRow([
     txnId,
     nowFormatted,
@@ -1049,7 +1150,10 @@ function logExpenseSilent(message, username) {
     categorization === 'user',
     categorization === 'user' ? nowFormatted : '',
     message,
-    "'" + monthKey
+    "'" + monthKey,
+    currencyInfo.originalAmount || '',
+    currencyInfo.originalCurrency || '',
+    currencyInfo.exchangeRate || ''
   ]);
   
   const props = PropertiesService.getScriptProperties();
@@ -1070,19 +1174,42 @@ function logExpenseSilent(message, username) {
 function parseExpenseInput(input) {
   input = input.trim();
   
+  // Check for VND currency first
+  const vndInfo = detectAndConvertVnd(input);
+  let currencyInfo = null;
+  
+  if (vndInfo) {
+    // Use cleaned input (with EUR amount) for further parsing
+    input = vndInfo.cleanedInput;
+    currencyInfo = {
+      originalAmount: vndInfo.originalAmount,
+      originalCurrency: vndInfo.originalCurrency,
+      exchangeRate: vndInfo.exchangeRate
+    };
+  }
+  
   const geminiResult = parseWithGemini(input);
   if (geminiResult && geminiResult.amount && geminiResult.merchant) {
     return {
-      amount: geminiResult.amount,
+      amount: vndInfo ? vndInfo.eurAmount : geminiResult.amount,
       merchant: geminiResult.merchant,
       category: geminiResult.category,
       spender: geminiResult.spender,
       date: geminiResult.date,
-      description: geminiResult.description || ''
+      description: geminiResult.description || '',
+      currencyInfo: currencyInfo
     };
   }
   
-  return parseExpenseInputRegex(input);
+  const regexResult = parseExpenseInputRegex(input);
+  if (regexResult) {
+    // Override amount if VND was detected
+    if (vndInfo) {
+      regexResult.amount = vndInfo.eurAmount;
+    }
+    regexResult.currencyInfo = currencyInfo;
+  }
+  return regexResult;
 }
 
 function parseExpenseInputRegex(input) {
@@ -1795,10 +1922,18 @@ function executeUndo(username) {
 function formatExpenseResponse(parsed, category, spender, categorization, budgetStatus) {
   const catTag = categorization === 'ai' ? `(ai ${EMOJI.WARNING})` : '(user)';
   
-  return `${EMOJI.CHECK} **Logged:** ${EMOJI.EURO}${parsed.amount.toFixed(2)} ${EMOJI.ARROW} ${category}
+  // Build currency info line if VND was used
+  let currencyLine = '';
+  if (parsed.currencyInfo && parsed.currencyInfo.originalCurrency === 'VND') {
+    const vndFormatted = parsed.currencyInfo.originalAmount.toLocaleString('de-DE');
+    const rateDisplay = (1 / parsed.currencyInfo.exchangeRate).toFixed(0);
+    currencyLine = `\n${EMOJI.VND} Original: ${vndFormatted} VND (1${EMOJI.EURO} = ${rateDisplay} VND)`;
+  }
+  
+  return `${EMOJI.CHECK} **Logged:** ${EMOJI.EURO}${parsed.amount.toFixed(2)} ${EMOJI.ARROW} ${category}${currencyLine}
 ${EMOJI.MEMO} Merchant: ${parsed.merchant}
 ${EMOJI.PERSON} Spender: ${spender}
-🏷️ Category: ${category} ${catTag}
+ðŸ·ï¸ Category: ${category} ${catTag}
 
 ${EMOJI.LINE.repeat(29)}
 ${EMOJI.CHART} **BUDGET STATUS**
