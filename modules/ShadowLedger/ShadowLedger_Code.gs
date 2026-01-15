@@ -1,7 +1,14 @@
 /**
  * ShadowLedger - Google Apps Script
- * Version: 2.4.2
+ * Version: 2.5.0
  * Date: 2026-01-15
+ * 
+ * v2.5.0 Changes:
+ * - NEW: !income soldrsu h/w - Log actual RSU sale proceeds
+ * - NEW: !income soldownsap h/w - Log actual OWNSAP sale proceeds
+ * - Sold stock logs to CURRENT month (not previous like salary)
+ * - Append mode: multiple sales per month allowed
+ * - !income status shows sold stock as optional fields
  * 
  * v2.4.2 Changes:
  * - FIX: Bare "k" (200k cafe) now detected as VND
@@ -84,6 +91,11 @@ const CONFIG = {
     'youtube': { column: 'yt_gross', requiresSpender: false, label: 'YouTube Gross' },
     'other': { column: 'other_fam_net_inc', requiresSpender: false, label: 'Other Income' }
   },
+  // Sold stock income types (log to CURRENT month, append mode)
+  SOLD_STOCK_TYPES: {
+    'soldrsu': { label: 'Sold RSU', requiresSpender: true },
+    'soldownsap': { label: 'Sold OWNSAP', requiresSpender: true }
+  },
   REMINDER_DAYS: [1, 6, 11, 16, 21, 26],
   INVESTMENT_DESTINATIONS: ['scalable', 'revolut', 'comdirect', 'trade_republic', 'other']
 };
@@ -120,7 +132,8 @@ const EMOJI = {
   PARTY: '🎉',
   MINUS: '➖',
   TRENDING: '📈',
-  VND: '\u{1F1FB}\u{1F1F3}'
+  VND: '\u{1F1FB}\u{1F1F3}',
+  STOCK: '📉'
 };
 
 // ============ VND CURRENCY SUPPORT ============
@@ -248,20 +261,20 @@ function doGet(e) {
   if (action === 'test') {
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
-      message: 'ShadowLedger API v2.4.2 is running',
+      message: 'ShadowLedger API v2.5.0 is running',
       timestamp: new Date().toISOString(),
       endpoints: [
         '?action=dashboard - Financial data for Sankey',
         '?action=expenses&month=YYYY-MM - Expense breakdown',
         '?action=test - This health check'
       ],
-      features: ['expenses', 'income', 'ta_hours', 'investments', 'reminders']
+      features: ['expenses', 'income', 'ta_hours', 'investments', 'sold_stock', 'reminders']
     })).setMimeType(ContentService.MimeType.JSON);
   }
   
   return ContentService.createTextOutput(JSON.stringify({
     success: true,
-    message: 'ShadowLedger API v2.3.1',
+    message: 'ShadowLedger API v2.5.0',
     hint: 'Use ?action=dashboard, ?action=expenses&month=YYYY-MM, or ?action=test'
   })).setMimeType(ContentService.MimeType.JSON);
 }
@@ -339,7 +352,7 @@ function handleCommand(message, username) {
   const cmd = parts[0];
   
   if (cmd === '!help') {
-    const helpText = `**ShadowLedger v2.3 Commands**
+    const helpText = `**ShadowLedger v2.5 Commands**
 
 ${EMOJI.MEMO} **Expense Logging (flexible format):**
 Any order works! Examples:
@@ -372,6 +385,12 @@ ${EMOJI.MONEY} **Income Commands:**
 !income 1200 youtube - Log YT gross
 !income 50 other payback - Log other income
 !income status - Check what's missing
+
+${EMOJI.STOCK} **Sold Stock (logs to CURRENT month):**
+!income 5200 soldrsu h - H's RSU sale
+!income 2500 soldrsu w - W's RSU sale
+!income 847 soldownsap h - H's OWNSAP sale
+!income 650 soldownsap w - W's OWNSAP sale
 
 ${EMOJI.TIMER} **Time Account:**
 !ta 45 h - Log H hours added
@@ -634,15 +653,18 @@ function handleIncomeCommand(message, username) {
   if (parts.length < 3) {
     sendDiscordMessage(`${EMOJI.CROSS} **Format:** !income [amount] [type] [h/w] [description]
 
-**Types:** salary, youtube, other
+**Types:** salary, youtube, other, soldrsu, soldownsap
 **Examples:**
 ${EMOJI.BULLET} !income 4200 salary h
 ${EMOJI.BULLET} !income 3800 salary w
 ${EMOJI.BULLET} !income 1200 youtube
-${EMOJI.BULLET} !income 50 other payback cashout`);
+${EMOJI.BULLET} !income 50 other payback cashout
+${EMOJI.BULLET} !income 5200 soldrsu h
+${EMOJI.BULLET} !income 847 soldownsap w`);
     return { success: false, error: 'Invalid format' };
   }
   
+  // Parse amount
   let amount = null;
   let amountIndex = -1;
   for (let i = 1; i < parts.length; i++) {
@@ -659,8 +681,25 @@ ${EMOJI.BULLET} !income 50 other payback cashout`);
     return { success: false, error: 'No amount found' };
   }
   
-  let incomeType = null;
+  // Check for sold stock types first (they have different behavior)
+  let soldStockType = null;
   let typeIndex = -1;
+  for (let i = 1; i < parts.length; i++) {
+    const partLower = parts[i].toLowerCase();
+    if (CONFIG.SOLD_STOCK_TYPES[partLower]) {
+      soldStockType = partLower;
+      typeIndex = i;
+      break;
+    }
+  }
+  
+  // If sold stock type found, handle separately
+  if (soldStockType) {
+    return handleSoldStockCommand(parts, amount, amountIndex, soldStockType, typeIndex, username);
+  }
+  
+  // Standard income type handling
+  let incomeType = null;
   for (let i = 1; i < parts.length; i++) {
     if (CONFIG.INCOME_TYPES[parts[i]]) {
       incomeType = parts[i];
@@ -670,7 +709,7 @@ ${EMOJI.BULLET} !income 50 other payback cashout`);
   }
   
   if (!incomeType) {
-    sendDiscordMessage(`${EMOJI.CROSS} Unknown income type. Use: salary, youtube, or other`);
+    sendDiscordMessage(`${EMOJI.CROSS} Unknown income type. Use: salary, youtube, other, soldrsu, or soldownsap`);
     return { success: false, error: 'Unknown type' };
   }
   
@@ -706,6 +745,7 @@ ${EMOJI.BULLET} !income 50 other payback cashout`);
   const descParts = parts.filter((_, i) => !usedIndices.has(i));
   description = descParts.join(' ');
   
+  // Standard income logs to PREVIOUS month
   const now = new Date();
   const targetMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const monthKey = Utilities.formatDate(targetMonth, CONFIG.TIMEZONE, 'yyyy-MM');
@@ -725,6 +765,105 @@ Use **!income status** to see what's still missing`);
   }
   
   return result;
+}
+
+/**
+ * Handle sold stock commands (soldrsu, soldownsap)
+ * These log to CURRENT month and use APPEND mode (multiple entries allowed)
+ */
+function handleSoldStockCommand(parts, amount, amountIndex, stockType, typeIndex, username) {
+  const typeConfig = CONFIG.SOLD_STOCK_TYPES[stockType];
+  
+  // Find spender (REQUIRED for both soldrsu and soldownsap)
+  let spender = null;
+  let spenderIndex = -1;
+  for (let i = 1; i < parts.length; i++) {
+    if (i !== amountIndex && i !== typeIndex) {
+      const alias = parts[i].toLowerCase();
+      if (SPENDER_ALIASES[alias]) {
+        spender = SPENDER_ALIASES[alias];
+        spenderIndex = i;
+        break;
+      }
+    }
+  }
+  
+  if (!spender) {
+    sendDiscordMessage(`${EMOJI.CROSS} ${typeConfig.label} requires spender (h/w). Use: !income ${amount} ${stockType} h`);
+    return { success: false, error: 'Missing spender' };
+  }
+  
+  // Extract notes (remaining parts)
+  const usedIndices = new Set([0, amountIndex, typeIndex, spenderIndex]);
+  const notesParts = parts.filter((_, i) => !usedIndices.has(i));
+  const notes = notesParts.join(' ');
+  
+  // Sold stock logs to CURRENT month (not previous)
+  const now = new Date();
+  const monthKey = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM');
+  
+  const result = logSoldStockEntry(stockType, amount, spender, notes, monthKey, username);
+  
+  if (result.success) {
+    // Get month totals for this type+spender
+    const monthTotals = getSoldStockMonthTotals(monthKey, stockType, spender);
+    
+    sendDiscordMessage(`${EMOJI.CHECK} **${typeConfig.label} Logged**
+${EMOJI.LINE.repeat(25)}
+${EMOJI.STOCK} ${EMOJI.EURO}${amount.toFixed(2)} ${EMOJI.ARROW} ${typeConfig.label} (${spender})
+${EMOJI.CALENDAR} Month: ${monthKey}
+${EMOJI.MEMO} ${notes || '(no notes)'}
+${EMOJI.LINE.repeat(25)}
+**${monthKey} ${typeConfig.label} (${spender}):** ${EMOJI.EURO}${monthTotals.toFixed(2)} (${result.count} sale${result.count > 1 ? 's' : ''})`);
+  }
+  
+  return result;
+}
+
+/**
+ * Log sold stock entry (APPEND mode - multiple entries per month allowed)
+ */
+function logSoldStockEntry(type, amount, spender, notes, monthKey, inputter) {
+  try {
+    const sheet = getOrCreateIncomeSheet();
+    const now = new Date();
+    const timestamp = Utilities.formatDate(now, CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss");
+    const entryId = `SOLD-${Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyyMMdd-HHmmss')}`;
+    
+    // Always append (no update-in-place for sold stock)
+    sheet.appendRow([entryId, monthKey, type, amount, spender, notes, timestamp, inputter]);
+    
+    // Count entries for this type+spender+month
+    const data = sheet.getDataRange().getValues();
+    let count = 0;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][1] === monthKey && data[i][2] === type && data[i][4] === spender) {
+        count++;
+      }
+    }
+    
+    return { success: true, updated: false, count: count };
+  } catch (e) {
+    sendDiscordMessage(`${EMOJI.CROSS} Error logging sold stock: ` + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Get total sold stock amount for a month/type/spender
+ */
+function getSoldStockMonthTotals(monthKey, type, spender) {
+  const sheet = getOrCreateIncomeSheet();
+  const data = sheet.getDataRange().getValues();
+  
+  let total = 0;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][1] === monthKey && data[i][2] === type && data[i][4] === spender) {
+      total += data[i][3] || 0;
+    }
+  }
+  
+  return total;
 }
 
 function logIncomeEntry(type, amount, spender, description, monthKey, inputter) {
@@ -859,15 +998,19 @@ function logTAEntry(type, hours, spender, monthKey, inputter) {
 
 function getIncomeStatus(monthKeyOverride) {
   const now = new Date();
-  const targetMonth = monthKeyOverride || Utilities.formatDate(
+  // For required income: use PREVIOUS month
+  const prevMonth = monthKeyOverride || Utilities.formatDate(
     new Date(now.getFullYear(), now.getMonth() - 1, 1), 
     CONFIG.TIMEZONE, 
     'yyyy-MM'
   );
+  // For sold stock: use CURRENT month
+  const currentMonth = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM');
   
   const sheet = getOrCreateIncomeSheet();
   const data = sheet.getDataRange().getValues();
   
+  // Required fields (previous month)
   const entered = {
     'salary_h': false,
     'salary_w': false,
@@ -878,12 +1021,22 @@ function getIncomeStatus(monthKeyOverride) {
   
   const amounts = {};
   
+  // Sold stock amounts (current month) - totals by type+spender
+  const soldStock = {
+    'soldrsu_h': 0,
+    'soldrsu_w': 0,
+    'soldownsap_h': 0,
+    'soldownsap_w': 0
+  };
+  
   for (let i = 1; i < data.length; i++) {
-    if (data[i][1] === targetMonth) {
-      const type = data[i][2];
-      const amount = data[i][3];
-      const spender = data[i][4];
-      
+    const rowMonth = data[i][1];
+    const type = data[i][2];
+    const amount = data[i][3];
+    const spender = data[i][4];
+    
+    // Check required income (previous month)
+    if (rowMonth === prevMonth) {
       if (type === 'salary' && spender === 'H') {
         entered['salary_h'] = true;
         amounts['salary_h'] = amount;
@@ -903,14 +1056,28 @@ function getIncomeStatus(monthKeyOverride) {
         amounts['ta_w'] = amount;
       }
     }
+    
+    // Check sold stock (current month)
+    if (rowMonth === currentMonth) {
+      if (type === 'soldrsu' && spender === 'H') {
+        soldStock['soldrsu_h'] += amount || 0;
+      } else if (type === 'soldrsu' && spender === 'W') {
+        soldStock['soldrsu_w'] += amount || 0;
+      } else if (type === 'soldownsap' && spender === 'H') {
+        soldStock['soldownsap_h'] += amount || 0;
+      } else if (type === 'soldownsap' && spender === 'W') {
+        soldStock['soldownsap_w'] += amount || 0;
+      }
+    }
   }
   
   const allComplete = Object.values(entered).every(v => v);
   const statusEmoji = allComplete ? EMOJI.CHECK : EMOJI.CLIPBOARD;
   
-  let response = `${statusEmoji} **Income Status for ${targetMonth}**
+  let response = `${statusEmoji} **Income Status for ${prevMonth}**
 ${EMOJI.LINE.repeat(32)}
 
+**Required:**
 `;
   
   response += entered['salary_h'] 
@@ -936,6 +1103,27 @@ ${EMOJI.LINE.repeat(32)}
   response += entered['ta_w']
     ? `${EMOJI.CHECK} W TA Hours: ${amounts['ta_w']} hrs\n`
     : `${EMOJI.CROSS} W TA Hours: *missing*\n`;
+
+  // Sold stock section (current month, optional)
+  response += `
+**Sold Stock (${currentMonth}, optional):**
+`;
+  
+  response += soldStock['soldrsu_h'] > 0
+    ? `${EMOJI.CHECK} Sold RSU (H): ${EMOJI.EURO}${soldStock['soldrsu_h'].toFixed(2)}\n`
+    : `${EMOJI.MINUS} Sold RSU (H): ${EMOJI.EURO}0\n`;
+    
+  response += soldStock['soldrsu_w'] > 0
+    ? `${EMOJI.CHECK} Sold RSU (W): ${EMOJI.EURO}${soldStock['soldrsu_w'].toFixed(2)}\n`
+    : `${EMOJI.MINUS} Sold RSU (W): ${EMOJI.EURO}0\n`;
+    
+  response += soldStock['soldownsap_h'] > 0
+    ? `${EMOJI.CHECK} Sold OWNSAP (H): ${EMOJI.EURO}${soldStock['soldownsap_h'].toFixed(2)}\n`
+    : `${EMOJI.MINUS} Sold OWNSAP (H): ${EMOJI.EURO}0\n`;
+    
+  response += soldStock['soldownsap_w'] > 0
+    ? `${EMOJI.CHECK} Sold OWNSAP (W): ${EMOJI.EURO}${soldStock['soldownsap_w'].toFixed(2)}\n`
+    : `${EMOJI.MINUS} Sold OWNSAP (W): ${EMOJI.EURO}0\n`;
   
   response += `
 ${EMOJI.LINE.repeat(32)}`;
@@ -947,7 +1135,9 @@ ${EMOJI.LINE.repeat(32)}`;
 ${EMOJI.BULLET} !income [amount] salary h/w
 ${EMOJI.BULLET} !income [amount] youtube
 ${EMOJI.BULLET} !income [amount] other [desc]
-${EMOJI.BULLET} !ta [hours] h/w`;
+${EMOJI.BULLET} !ta [hours] h/w
+${EMOJI.BULLET} !income [amount] soldrsu h/w
+${EMOJI.BULLET} !income [amount] soldownsap h/w`;
   } else {
     response += `
 
@@ -955,7 +1145,7 @@ ${EMOJI.PARTY} All required inputs complete!`;
   }
   
   sendDiscordMessage(response);
-  return { success: true, complete: allComplete, entered: entered };
+  return { success: true, complete: allComplete, entered: entered, soldStock: soldStock };
 }
 
 // ============ MONTHLY REMINDER TRIGGER ============
@@ -1602,16 +1792,12 @@ function getBudgetStatus() {
   // Read ALL spending in ONE call
   const allSpending = getAllCategorySpending(monthKey);
   
-  let response = `${EMOJI.CHART} **BUDGET STATUS** (${monthName})\n`;
-  response += '```\n';
-  response += 'Category              Spent    Budget   %\n';
-  response += `${EMOJI.LINE.repeat(41)}\n`;
-  
+  // Build table rows
+  let tableRows = [];
   let totalBudget = 0;
   let totalSpent = 0;
   
   // SL_Budget has multiple months - filter for current month only
-  // Schema: [category, Budget, Month_Key, Spent, Remaining, Percent]
   for (let i = 1; i < budgetData.length; i++) {
     const category = budgetData[i][0];
     const budget = budgetData[i][1] || 0;
@@ -1621,7 +1807,6 @@ function getBudgetStatus() {
     if (rowMonthKey !== monthKey) continue;
     if (!category) continue;
     
-    // Use cached spending data - NO extra sheet reads!
     const spent = allSpending[category] || 0;
     const percent = budget > 0 ? spent / budget : 0;
     
@@ -1630,23 +1815,55 @@ function getBudgetStatus() {
     else if (percent >= 0.8) status = EMOJI.ORANGE;
     else if (percent >= 0.5) status = EMOJI.YELLOW;
     
-    const percentStr = (percent * 100).toFixed(0).padStart(3);
-    const catName = category.substring(0, 18).padEnd(18);
-    const spentStr = (`${EMOJI.EURO}` + spent.toFixed(0)).padStart(8);
-    const budgetStr = (`${EMOJI.EURO}` + budget).padStart(8);
+    // Truncate category name to fit
+    let catName = category;
+    if (catName.length > 18) catName = catName.substring(0, 16) + '..';
     
-    response += `${status} ${catName} ${spentStr} ${budgetStr} ${percentStr}%\n`;
+    tableRows.push({
+      status: status,
+      category: catName,
+      spent: spent,
+      budget: budget,
+      percent: percent
+    });
     
     totalBudget += budget;
     totalSpent += spent;
   }
   
-  const totalPercent = totalBudget > 0 ? totalSpent / totalBudget : 0;
-  response += `${EMOJI.LINE.repeat(41)}\n`;
-  response += `   TOTAL              ${(`${EMOJI.EURO}` + totalSpent.toFixed(0)).padStart(8)} ${(`${EMOJI.EURO}` + totalBudget).padStart(8)} ${(totalPercent * 100).toFixed(0).padStart(3)}%\n`;
-  response += '```';
+  // Sort by budget descending (or keep original order)
+  // tableRows.sort((a, b) => b.budget - a.budget);
   
-  sendDiscordMessage(response);
+  // Build the formatted table using monospace
+  let table = '```\n';
+  table += '  Category            Spent   Budget    %\n';
+  table += '─'.repeat(45) + '\n';
+  
+  for (const row of tableRows) {
+    // Skip zero/zero
+    if (row.budget === 0 && row.spent === 0) continue;
+    
+    const catPad = row.category.padEnd(18);
+    const spentPad = ('€' + row.spent.toFixed(0)).padStart(7);
+    const budgetPad = ('€' + row.budget.toFixed(0)).padStart(7);
+    const pctPad = ((row.percent * 100).toFixed(0) + '%').padStart(5);
+    
+    table += `${row.status} ${catPad} ${spentPad} ${budgetPad} ${pctPad}\n`;
+  }
+  
+  const totalPercent = totalBudget > 0 ? totalSpent / totalBudget : 0;
+  table += '─'.repeat(45) + '\n';
+  table += `   ${'TOTAL'.padEnd(18)} ${('€' + totalSpent.toFixed(0)).padStart(7)} ${('€' + totalBudget.toFixed(0)).padStart(7)} ${((totalPercent * 100).toFixed(0) + '%').padStart(5)}\n`;
+  table += '```';
+  
+  // Discord embed with the table in description
+  const embed = {
+    title: `📊 BUDGET STATUS (${monthName})`,
+    description: table,
+    color: totalPercent >= 1 ? 0xFF0000 : totalPercent >= 0.8 ? 0xFFA500 : 0x3498db
+  };
+  
+  sendDiscordMessage(null, embed);
   return { success: true };
 }
 
@@ -1966,7 +2183,7 @@ function getSheet(name) {
   return ss.getSheetByName(name);
 }
 
-function sendDiscordMessage(content) {
+function sendDiscordMessage(content, embed = null) {
   const config = getConfigValues();
   const webhookUrl = config.discord_webhook_url;
   
@@ -1975,9 +2192,9 @@ function sendDiscordMessage(content) {
     return;
   }
   
-  const payload = {
-    content: content
-  };
+  const payload = {};
+  if (content) payload.content = content;
+  if (embed) payload.embeds = [embed];
   
   const options = {
     method: 'post',
