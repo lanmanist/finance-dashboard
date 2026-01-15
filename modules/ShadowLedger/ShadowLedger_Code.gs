@@ -1,7 +1,12 @@
 /**
  * ShadowLedger - Google Apps Script
- * Version: 2.4.0
- * Date: 2026-01-13
+ * Version: 2.4.1
+ * Date: 2026-01-15
+ * 
+ * v2.4.1 Changes:
+ * - FIX: VND amounts like 1.85€ no longer confused with dates
+ * - FIX: Gemini date parsing validated to prevent 1970 epoch bug
+ * - ADD: One-time budget population script for new category
  * 
  * v2.4.0 Changes:
  * - NEW: Budget category "Fees, Interest, Bureaucracy, Documents"
@@ -188,8 +193,9 @@ function detectAndConvertVnd(input) {
   const rate = getVndRate();
   const eurAmount = Math.round(vndAmount * rate * 100) / 100;
   
-  // Clean the input by removing the VND pattern
-  const cleanedInput = input.replace(matchedPattern, eurAmount.toFixed(2)).trim();
+  // Clean the input by removing the VND pattern and replacing with EUR amount
+  // IMPORTANT: Add € symbol to prevent amount being confused with date pattern (e.g., 1.85 looking like Jan 85)
+  const cleanedInput = input.replace(matchedPattern, eurAmount.toFixed(2) + '€').trim();
   
   return {
     eurAmount: eurAmount,
@@ -238,7 +244,7 @@ function doGet(e) {
   if (action === 'test') {
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
-      message: 'ShadowLedger API v2.4.0 is running',
+      message: 'ShadowLedger API v2.4.1 is running',
       timestamp: new Date().toISOString(),
       endpoints: [
         '?action=dashboard - Financial data for Sankey',
@@ -1323,7 +1329,14 @@ Return ONLY valid JSON like:
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         if (parsed.date) {
-          parsed.date = new Date(parsed.date);
+          // Validate date to prevent 1970 epoch bug
+          const parsedDate = new Date(parsed.date);
+          if (!isNaN(parsedDate.getTime()) && parsedDate.getFullYear() >= 2020) {
+            parsed.date = parsedDate;
+          } else {
+            // Invalid or very old date - ignore it
+            parsed.date = null;
+          }
         }
         return parsed;
       }
@@ -2326,4 +2339,91 @@ function testIncomeStatus() {
 function testInvestmentStatus() {
   getInvestmentStatus();
   Logger.log('Investment status test complete');
+}
+
+// ============ ONE-TIME SETUP FUNCTIONS ============
+// Run these manually from Apps Script editor when needed
+
+/**
+ * ONE-TIME: Populate SL_Budget with new category for all months 2026-01 to 2042-12
+ * Run this once after adding a new category to CONFIG.CATEGORIES
+ * 
+ * HOW TO USE:
+ * 1. Open Apps Script editor
+ * 2. Select this function from dropdown
+ * 3. Click Run
+ * 4. Check SL_Budget sheet for new rows
+ */
+function populateBudgetForNewCategory() {
+  const CATEGORY_NAME = 'Fees, Interest, Bureaucracy, Documents';
+  const BUDGET_AMOUNT = 100;  // €100 per month
+  const START_YEAR = 2026;
+  const START_MONTH = 1;  // January
+  const END_YEAR = 2042;
+  const END_MONTH = 12;  // December
+  
+  const sheet = getSheet(CONFIG.SHEETS.BUDGET);
+  if (!sheet) {
+    Logger.log('ERROR: SL_Budget sheet not found');
+    return;
+  }
+  
+  // Check if category already has entries
+  const existingData = sheet.getDataRange().getValues();
+  let existingCount = 0;
+  for (let i = 1; i < existingData.length; i++) {
+    if (existingData[i][0] === CATEGORY_NAME) {
+      existingCount++;
+    }
+  }
+  
+  if (existingCount > 0) {
+    Logger.log(`WARNING: Category "${CATEGORY_NAME}" already has ${existingCount} entries. Skipping to avoid duplicates.`);
+    Logger.log('If you want to re-run, first delete existing entries for this category.');
+    return;
+  }
+  
+  // Generate all month keys and add rows
+  const rowsToAdd = [];
+  for (let year = START_YEAR; year <= END_YEAR; year++) {
+    const startM = (year === START_YEAR) ? START_MONTH : 1;
+    const endM = (year === END_YEAR) ? END_MONTH : 12;
+    
+    for (let month = startM; month <= endM; month++) {
+      const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+      rowsToAdd.push([CATEGORY_NAME, BUDGET_AMOUNT, "'" + monthKey]);
+    }
+  }
+  
+  // Batch append all rows
+  if (rowsToAdd.length > 0) {
+    const lastRow = sheet.getLastRow();
+    sheet.getRange(lastRow + 1, 1, rowsToAdd.length, 3).setValues(rowsToAdd);
+    Logger.log(`SUCCESS: Added ${rowsToAdd.length} budget entries for "${CATEGORY_NAME}"`);
+    Logger.log(`Range: ${START_YEAR}-${String(START_MONTH).padStart(2, '0')} to ${END_YEAR}-${String(END_MONTH).padStart(2, '0')}`);
+  }
+}
+
+/**
+ * ONE-TIME: Test VND detection (run from Apps Script to debug)
+ */
+function testVndDetection() {
+  const testCases = [
+    '50kVND banh mi w',
+    '50k VND banh mi w', 
+    '200000VND pho h',
+    '200k cafe',
+    '45 rewe',  // Should NOT detect VND
+  ];
+  
+  for (const test of testCases) {
+    const result = detectAndConvertVnd(test);
+    if (result) {
+      Logger.log(`INPUT: "${test}"`);
+      Logger.log(`  VND: ${result.originalAmount} → EUR: ${result.eurAmount}`);
+      Logger.log(`  Cleaned: "${result.cleanedInput}"`);
+    } else {
+      Logger.log(`INPUT: "${test}" → No VND detected (EUR assumed)`);
+    }
+  }
 }
