@@ -1,7 +1,11 @@
 /**
  * ShadowLedger - Google Apps Script
- * Version: 2.4.1
+ * Version: 2.4.2
  * Date: 2026-01-15
+ * 
+ * v2.4.2 Changes:
+ * - FIX: Bare "k" (200k cafe) now detected as VND
+ * - FIX: VND amounts use comma decimal (1,63€) to avoid date regex collision
  * 
  * v2.4.1 Changes:
  * - FIX: VND amounts like 1.85€ no longer confused with dates
@@ -176,7 +180,7 @@ function detectAndConvertVnd(input) {
   
   // Check for bare 'k' suffix (200k alone = 200,000 VND)
   if (!vndAmount) {
-    const kAloneMatch = input.match(/(\d+(?:[.,]\d+)?)\s*k(?!\s*[a-zA-Z])/i);
+    const kAloneMatch = input.match(/(\d+(?:[.,]\d+)?)\s*k(?!\s*vnd)/i);
     if (kAloneMatch) {
       let numStr = kAloneMatch[1].replace(',', '.');
       vndAmount = parseFloat(numStr) * 1000;
@@ -195,7 +199,7 @@ function detectAndConvertVnd(input) {
   
   // Clean the input by removing the VND pattern and replacing with EUR amount
   // IMPORTANT: Add € symbol to prevent amount being confused with date pattern (e.g., 1.85 looking like Jan 85)
-  const cleanedInput = input.replace(matchedPattern, eurAmount.toFixed(2) + '€').trim();
+  const cleanedInput = input.replace(matchedPattern, eurAmount.toFixed(2).replace('.', ',') + '€').trim();
   
   return {
     eurAmount: eurAmount,
@@ -244,7 +248,7 @@ function doGet(e) {
   if (action === 'test') {
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
-      message: 'ShadowLedger API v2.4.1 is running',
+      message: 'ShadowLedger API v2.4.2 is running',
       timestamp: new Date().toISOString(),
       endpoints: [
         '?action=dashboard - Financial data for Sankey',
