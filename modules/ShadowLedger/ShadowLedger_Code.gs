@@ -1,12 +1,16 @@
 /**
  * ShadowLedger - Google Apps Script
- * Version: 2.5.0
- * Date: 2026-01-15
+ * Version: 2.5.1
+ * Date: 2026-01-16
+ * 
+ * v2.5.1 Changes:
+ * - CHANGE: Sold stock now logs to PREVIOUS month (same as salary/youtube)
+ * - This enables formula integration in StandardFinance Monthly_Model_v4
+ * - Actuals override projections for RSU (col M, U) and OWNSAP (col V, W)
  * 
  * v2.5.0 Changes:
  * - NEW: !income soldrsu h/w - Log actual RSU sale proceeds
  * - NEW: !income soldownsap h/w - Log actual OWNSAP sale proceeds
- * - Sold stock logs to CURRENT month (not previous like salary)
  * - Append mode: multiple sales per month allowed
  * - !income status shows sold stock as optional fields
  * 
@@ -798,9 +802,11 @@ function handleSoldStockCommand(parts, amount, amountIndex, stockType, typeIndex
   const notesParts = parts.filter((_, i) => !usedIndices.has(i));
   const notes = notesParts.join(' ');
   
-  // Sold stock logs to CURRENT month (not previous)
+  // Sold stock logs to PREVIOUS month (same pattern as salary/youtube)
+  // This enables formula integration in StandardFinance
   const now = new Date();
-  const monthKey = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM');
+  const targetMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const monthKey = Utilities.formatDate(targetMonth, CONFIG.TIMEZONE, 'yyyy-MM');
   
   const result = logSoldStockEntry(stockType, amount, spender, notes, monthKey, username);
   
@@ -998,14 +1004,12 @@ function logTAEntry(type, hours, spender, monthKey, inputter) {
 
 function getIncomeStatus(monthKeyOverride) {
   const now = new Date();
-  // For required income: use PREVIOUS month
+  // For all income including sold stock: use PREVIOUS month
   const prevMonth = monthKeyOverride || Utilities.formatDate(
     new Date(now.getFullYear(), now.getMonth() - 1, 1), 
     CONFIG.TIMEZONE, 
     'yyyy-MM'
   );
-  // For sold stock: use CURRENT month
-  const currentMonth = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM');
   
   const sheet = getOrCreateIncomeSheet();
   const data = sheet.getDataRange().getValues();
@@ -1021,7 +1025,7 @@ function getIncomeStatus(monthKeyOverride) {
   
   const amounts = {};
   
-  // Sold stock amounts (current month) - totals by type+spender
+  // Sold stock amounts (previous month) - totals by type+spender
   const soldStock = {
     'soldrsu_h': 0,
     'soldrsu_w': 0,
@@ -1035,7 +1039,7 @@ function getIncomeStatus(monthKeyOverride) {
     const amount = data[i][3];
     const spender = data[i][4];
     
-    // Check required income (previous month)
+    // Check all income (previous month)
     if (rowMonth === prevMonth) {
       if (type === 'salary' && spender === 'H') {
         entered['salary_h'] = true;
@@ -1054,12 +1058,7 @@ function getIncomeStatus(monthKeyOverride) {
       } else if (type === 'ta_w') {
         entered['ta_w'] = true;
         amounts['ta_w'] = amount;
-      }
-    }
-    
-    // Check sold stock (current month)
-    if (rowMonth === currentMonth) {
-      if (type === 'soldrsu' && spender === 'H') {
+      } else if (type === 'soldrsu' && spender === 'H') {
         soldStock['soldrsu_h'] += amount || 0;
       } else if (type === 'soldrsu' && spender === 'W') {
         soldStock['soldrsu_w'] += amount || 0;
@@ -1104,9 +1103,9 @@ ${EMOJI.LINE.repeat(32)}
     ? `${EMOJI.CHECK} W TA Hours: ${amounts['ta_w']} hrs\n`
     : `${EMOJI.CROSS} W TA Hours: *missing*\n`;
 
-  // Sold stock section (current month, optional)
+  // Sold stock section (previous month, optional)
   response += `
-**Sold Stock (${currentMonth}, optional):**
+**Sold Stock (${prevMonth}, optional):**
 `;
   
   response += soldStock['soldrsu_h'] > 0
