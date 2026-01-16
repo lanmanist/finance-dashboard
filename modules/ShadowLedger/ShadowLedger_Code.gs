@@ -837,13 +837,13 @@ function logSoldStockEntry(type, amount, spender, notes, monthKey, inputter) {
     const entryId = `SOLD-${Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyyMMdd-HHmmss')}`;
     
     // Always append (no update-in-place for sold stock)
-    sheet.appendRow([entryId, monthKey, type, amount, spender, notes, timestamp, inputter]);
+    sheet.appendRow([entryId, "'" + monthKey, type, amount, spender, notes, timestamp, inputter]);
     
     // Count entries for this type+spender+month
     const data = sheet.getDataRange().getValues();
     let count = 0;
     for (let i = 1; i < data.length; i++) {
-      if (data[i][1] === monthKey && data[i][2] === type && data[i][4] === spender) {
+      if (String(data[i][1]) === monthKey && data[i][2] === type && data[i][4] === spender) {        
         count++;
       }
     }
@@ -864,7 +864,7 @@ function getSoldStockMonthTotals(monthKey, type, spender) {
   
   let total = 0;
   for (let i = 1; i < data.length; i++) {
-    if (data[i][1] === monthKey && data[i][2] === type && data[i][4] === spender) {
+    if (String(data[i][1]) === monthKey && data[i][2] === type && data[i][4] === spender) {
       total += data[i][3] || 0;
     }
   }
