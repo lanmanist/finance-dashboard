@@ -1,7 +1,12 @@
 /**
  * ShadowLedger - Google Apps Script
- * Version: 2.5.1
+ * Version: 2.6.0
  * Date: 2026-01-16
+ * 
+ * v2.6.0 Changes:
+ * - NEW: Recurring payments system with scheduled prompts
+ * - NEW: Reply-based confirmation (yes/skip/amount)
+ * - NEW: !rec commands for recurring management
  * 
  * v2.5.1 Changes:
  * - CHANGE: Sold stock now logs to PREVIOUS month (same as salary/youtube)
@@ -67,7 +72,8 @@ const CONFIG = {
     PATTERNS: 'SL_Patterns',
     CONFIG: 'SL_Config',
     INCOME_LOG: 'SL_Income_Log',
-    INVESTMENT_LOG: 'SL_Investment_Log'
+    INVESTMENT_LOG: 'SL_Investment_Log',
+    RECURRING: 'SL_Recurring'
   },
   TIMEZONE: 'Europe/Berlin',
   CATEGORIES: [
@@ -289,6 +295,13 @@ function processDiscordMessage(data) {
   const message = data.content.trim();
   const username = data.username || 'unknown';
   
+  // Check for recurring payment reply first
+  if (!message.startsWith('!')) {
+    if (typeof handleRecurringReply === 'function' && handleRecurringReply(message, username)) {
+      return { success: true, handled: 'recurring_reply' };
+    }
+  }
+
   if (message.startsWith('!')) {
     return handleCommand(message, username);
   }
@@ -405,6 +418,13 @@ ${EMOJI.TRENDING} **Investment Commands:**
 !invest 1000 revolut ETF purchase
 !invest status - This month's transfers
 
+${EMOJI.CALENDAR} **Recurring Payments:**
+!rec list - Pending/upcoming status
+!rec confirm - Confirm pending
+!rec skip - Skip pending
+!rec all - All configured payments
+!rec help - Recurring help';
+
 !help - Show this message`;
     sendDiscordMessage(helpText);
     return { success: true };
@@ -455,6 +475,14 @@ ${EMOJI.TRENDING} **Investment Commands:**
     return handleInvestCommand(message, username);
   }
   
+  // Recurring payments (v2.6)
+  if (cmd === '!rec' || cmd === '!recurring') {
+    const recParts = parts.slice(1);
+    const recSubCmd = recParts[0] || '';
+    const recArgs = recParts.slice(1).join(' ');
+    return handleRecurringCommand(recSubCmd, recArgs, username);
+  }
+
   sendDiscordMessage(`${EMOJI.CROSS} Unknown command. Type !help for available commands.`);
   return { success: false, error: 'Unknown command' };
 }
