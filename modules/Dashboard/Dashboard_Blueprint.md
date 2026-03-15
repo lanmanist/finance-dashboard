@@ -39,8 +39,6 @@ A fully online, free dashboard that visualizes household cash flows as an intera
 
 | Component | URL |
 |-----------|-----|
-| Dashboard | https://lanmanist.github.io/finance-dashboard/ |
-| Google Sheet | https://docs.google.com/spreadsheets/d/1mrMCTbgPxjxbkHepDiQk_ddN0cbJ-A-GWWtwt3wOgSU/edit |
 | Apps Script | Integrated into ShadowLedger project (same deployment URL) |
 
 ---
