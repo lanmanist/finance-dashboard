@@ -507,7 +507,7 @@ ${EMOJI.BULLET} !invest 2000 comdirect monthly DCA`);
   let amountIndex = -1;
   for (let i = 1; i < parts.length; i++) {
     const num = parseFloat(parts[i].replace('€', '').replace(',', '.'));
-    if (!isNaN(num) && num > 0) {
+    if (!isNaN(num) && num >= 0) {
       amount = num;
       amountIndex = i;
       break;
@@ -2281,7 +2281,7 @@ function getExpenseBreakdown(month) {
     
     const [year, monthNum] = month.split('-').map(Number);
     const monthStart = new Date(year, monthNum - 1, 1);
-    const monthEnd = new Date(year, monthNum, 0);
+    const monthEnd = new Date(year, monthNum, 1);
     
     const ledgerData = ledgerSheet.getDataRange().getValues();
     
@@ -2299,7 +2299,7 @@ function getExpenseBreakdown(month) {
       const merchant = ledgerData[i][4] || '';
       const category = ledgerData[i][6];
       
-      if (txnDate >= monthStart && txnDate <= monthEnd) {
+      if (txnDate >= monthStart && txnDate < monthEnd) {
         if (categoryData.hasOwnProperty(category)) {
           categoryData[category].spent += amount;
           categoryData[category].transactions.push({
