@@ -2213,25 +2213,31 @@ function getSheet(name) {
 function sendDiscordMessage(content, embed = null) {
   const config = getConfigValues();
   const webhookUrl = config.discord_webhook_url;
-  
+
   if (!webhookUrl) {
     Logger.log('No webhook URL configured');
     return;
   }
-  
+
   const payload = {};
   if (content) payload.content = content;
   if (embed) payload.embeds = [embed];
-  
+
   const options = {
     method: 'post',
     contentType: 'application/json',
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   };
-  
+
   try {
-    UrlFetchApp.fetch(webhookUrl, options);
+    const resp = UrlFetchApp.fetch(webhookUrl, options);
+    const code = resp.getResponseCode();
+    if (code < 200 || code >= 300) {
+      const body = resp.getContentText();
+      const retryAfter = resp.getHeaders()['Retry-After'] || resp.getHeaders()['retry-after'] || '';
+      Logger.log(`Discord webhook non-2xx: HTTP ${code}${retryAfter ? ' (Retry-After: ' + retryAfter + ')' : ''} body=${body.substring(0, 300)}`);
+    }
   } catch (error) {
     Logger.log('Error sending to Discord: ' + error.toString());
   }
@@ -2675,3 +2681,4 @@ function testVndDetection() {
     }
   }
 }
+
